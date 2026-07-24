@@ -515,7 +515,12 @@ export const App = {
       row.className = `slot-row${whole ? '' : ' slot-row--half'}`;
       row.innerHTML = `
         <div class="slot${whole ? '' : ' slot--half'}" data-u="${u}" role="listitem" aria-label="Rack unit ${u}">
-          ${whole ? '<span class="rail-screw-hole-l h1"></span><span class="rail-screw-hole-r h1"></span>' : ''}
+          ${
+            whole
+              ? '<span class="rail-screw-hole-l h1"></span><span class="rail-screw-hole-l h2"></span><span class="rail-screw-hole-l h3"></span>' +
+                '<span class="rail-screw-hole-r h1"></span><span class="rail-screw-hole-r h2"></span><span class="rail-screw-hole-r h3"></span>'
+              : ''
+          }
           <div class="slot-bay">${whole ? `U${u}` : ''}</div>
         </div>`;
       this.$slots.appendChild(row);
