@@ -6,6 +6,7 @@ import { classifyConnection, rackByU } from './render/cableClassify.js';
 import { Persistence } from './features/persistence.js';
 import { computeBom, bomToCsv } from './features/bom.js';
 import { computeSchedule, scheduleToCsv } from './features/cableSchedule.js';
+import { Pricing, priceFn } from './features/pricing.js';
 import { getPortCenterInSVG, cablePath } from './utils/geometry.js';
 import { Tooltip } from './ui/tooltip.js';
 import { Toast } from './ui/toast.js';
@@ -27,11 +28,13 @@ export const App = {
   historyIndex: -1,
   redrawPending: false,
   labelTimer: null,
+  costSignature: '',
 
   init() {
     Tooltip.init();
     Toast.init();
     Theme.init();
+    Pricing.load();
 
     this.cacheDom();
     this.renderSidebar();
@@ -54,6 +57,9 @@ export const App = {
     this.$cableBreakdown = document.getElementById('cable-breakdown');
     this.$schedule = document.getElementById('schedule-list');
     this.$scheduleCount = document.getElementById('schedule-count');
+    this.$costList = document.getElementById('cost-list');
+    this.$costTotal = document.getElementById('cost-total');
+    this.$costNote = document.getElementById('cost-note');
     this.$hint = document.getElementById('placement-hint');
   },
 
@@ -393,6 +399,7 @@ export const App = {
     this.requestRedraw();
     this.updateReport();
     this.updateCableSchedule();
+    this.updateCostSummary();
     this.updatePowerSummary();
     Persistence.save(this.getState());
   },
@@ -557,6 +564,51 @@ export const App = {
       .join('');
   },
 
+  updateCostSummary() {
+    const bom = computeBom(this.getState(), priceFn);
+    // Rebuild the editable list only when rack composition changes, so typing
+    // in a price field doesn't blow away focus.
+    const sig = bom.items.map((i) => `${i.type}:${i.qty}`).join('|');
+    if (sig !== this.costSignature) {
+      this.renderCostList(bom.items);
+      this.costSignature = sig;
+    }
+    this.updateCostTotals(bom);
+  },
+
+  renderCostList(items) {
+    if (items.length === 0) {
+      this.$costList.innerHTML = '<div class="cost-empty text-muted">Add devices to estimate cost.</div>';
+      this.$costNote.textContent = '';
+      return;
+    }
+    this.$costList.innerHTML = items
+      .map((i) => {
+        const seedVal = Pricing.seedFor(i.type);
+        const override = Pricing.isOverridden(i.type) ? Pricing.overrides[i.type] : '';
+        return `<div class="cost-row">
+          <span class="cost-name" title="${escapeHtml(i.name)}">${escapeHtml(i.name)}</span>
+          <span class="cost-qty">×${i.qty}</span>
+          <span class="cost-input-wrap">${Pricing.currency === 'USD' ? '$' : ''}<input
+            class="cost-input" type="number" min="0" step="1"
+            inputmode="decimal" data-type="${i.type}"
+            value="${override}" placeholder="${seedVal ?? '0'}"
+            aria-label="Unit price for ${escapeHtml(i.name)}"></span>
+          <span class="cost-sub" data-cost-sub="${i.type}"></span>
+        </div>`;
+      })
+      .join('');
+    this.$costNote.textContent = `Seed prices approximate (${Pricing.currency}, ${Pricing.lastUpdated}) — edit to your quotes.`;
+  },
+
+  updateCostTotals(bom) {
+    this.$costTotal.textContent = bom.deviceCount === 0 ? '—' : formatMoney(bom.totalCost ?? 0, Pricing.currency);
+    bom.items.forEach((i) => {
+      const el = this.$costList.querySelector(`[data-cost-sub="${i.type}"]`);
+      if (el) el.textContent = i.subtotal != null ? formatMoney(i.subtotal, Pricing.currency) : '—';
+    });
+  },
+
   updatePowerSummary() {
     const m = computeMetrics(this.getState().rack, this.maxU);
     const thermalLabel = { cool: '🟢 Cool', warm: '🟡 Warm', high: '🔴 High' }[m.thermalLevel];
@@ -600,6 +652,14 @@ export const App = {
     document.getElementById('btn-export-png').addEventListener('click', (e) => exportPNG(e.currentTarget));
     document.getElementById('btn-export-bom').addEventListener('click', () => this.downloadBom());
     document.getElementById('btn-copy-bom').addEventListener('click', () => this.copyBom());
+    this.$costList.addEventListener('input', (e) => {
+      const input = e.target.closest('.cost-input');
+      if (!input) return;
+      Pricing.setPrice(input.dataset.type, input.value);
+      // Recompute totals only — don't rebuild the list, to keep focus.
+      this.updateCostTotals(computeBom(this.getState(), priceFn));
+    });
+
     document.getElementById('btn-export-schedule').addEventListener('click', () => this.downloadSchedule());
     document.getElementById('btn-copy-schedule').addEventListener('click', () => this.copySchedule());
     document.getElementById('btn-copy-report').addEventListener('click', () => this.copyReport());
@@ -677,7 +737,7 @@ export const App = {
   },
 
   downloadBom() {
-    const bom = computeBom(this.getState());
+    const bom = computeBom(this.getState(), priceFn);
     if (bom.deviceCount === 0) {
       Toast.show('Rack is empty — nothing to export.');
       return;
@@ -686,7 +746,7 @@ export const App = {
   },
 
   copyBom() {
-    const bom = computeBom(this.getState());
+    const bom = computeBom(this.getState(), priceFn);
     if (bom.deviceCount === 0) {
       Toast.show('Rack is empty — nothing to export.');
       return;
@@ -747,6 +807,14 @@ export const App = {
 
 function dateStamp() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatMoney(amount, currency) {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
+  } catch {
+    return `${Math.round(amount)}`;
+  }
 }
 
 function downloadText(content, filename, mime) {

@@ -1,0 +1,30 @@
+{
+  "currency": "USD",
+  "lastUpdated": "2026-07-24",
+  "note": "APPROXIMATE seed MSRPs for a rough estimate only — not live prices and not authoritative. Edit each to your own quote. A future release may replace these with live figures.",
+  "prices": {
+    "blank": 6,
+    "brush-panel": 10,
+    "patch-8": 20,
+    "patch-12": 30,
+    "usw-pro-xg-8-poe": 499,
+    "usw-lite-16-poe": 199,
+    "usw-lite-8-poe": 109,
+    "usw-flex-2.5g-8-poe": 199,
+    "usw-flex-2.5g-8": 165,
+    "usw-flex-2.5g-5": 79,
+    "usw-flex-mini": 29,
+    "usw-flex": 99,
+    "usw-flex-xg": 199,
+    "ucg-max": 199,
+    "ucg-ultra": 129,
+    "ucg-fiber": 279,
+    "ux7": 199,
+    "dell-optiplex-micro": 649,
+    "deskpi-dp0039": 40,
+    "deskpi-dp0046": 60,
+    "deskpi-dp0101": 70,
+    "deskpi-dp0059": 90,
+    "deskpi-dp0100": 110
+  }
+}
