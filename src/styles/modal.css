@@ -1,0 +1,125 @@
+.modal {
+  width: min(440px, 92vw);
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  color: var(--text-color);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+.modal::backdrop {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.field input,
+.field select {
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 500;
+}
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: var(--focus-ring);
+}
+
+.ports-fieldset {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+.ports-fieldset legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+#cd-ports {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.port-row {
+  display: grid;
+  grid-template-columns: 64px auto 1fr 34px;
+  align-items: center;
+  gap: 8px;
+}
+.port-row .port-count,
+.port-row .port-type {
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 12px;
+}
+.port-row .port-times {
+  color: var(--text-muted);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.modal-actions .btn {
+  width: auto;
+  padding: 8px 18px;
+}
+
+/* Custom device cards */
+.device-card-remove {
+  float: right;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--accent-red);
+  font-size: 12px;
+  line-height: 1;
+}
+.device-card-remove:hover {
+  background: var(--accent-red);
+  color: #fff;
+}
+.custom-empty {
+  margin: 0 0 10px;
+  font-size: 11px;
+}
