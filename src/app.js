@@ -1,5 +1,6 @@
 import { DEVICE_TYPES, PORT_SPECS, CATEGORIES, uHeightOf } from './data/devices.js';
 import { CustomDevices } from './features/customDevices.js';
+import { TEMPLATES } from './data/templates.js';
 import { createDevice } from './render/deviceFactory.js';
 import { computeMetrics } from './render/metrics.js';
 import { CableManager } from './render/cableManager.js';
@@ -211,6 +212,22 @@ export const App = {
       Persistence.deleteLayout(name);
       this.refreshLayoutSelect();
       Toast.show(`Deleted layout "${name}".`);
+    });
+
+    // Templates.
+    const tSelect = document.getElementById('template-select');
+    tSelect.innerHTML =
+      '<option value="">— start from template —</option>' +
+      TEMPLATES.map((t) => `<option value="${t.id}" title="${escapeHtml(t.description)}">${escapeHtml(t.name)}</option>`).join('');
+
+    document.getElementById('btn-load-template').addEventListener('click', () => {
+      const tpl = TEMPLATES.find((t) => t.id === tSelect.value);
+      if (!tpl) return;
+      const notEmpty = this.getState().rack.length > 0 || this.connections.length > 0;
+      if (notEmpty && !confirm(`Replace the current rack with the "${tpl.name}" template?`)) return;
+      this.loadState(structuredClone(tpl.state), { record: true });
+      tSelect.value = '';
+      Toast.show(`Loaded the "${tpl.name}" template.`);
     });
   },
 
