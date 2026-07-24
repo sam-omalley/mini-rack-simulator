@@ -1,8 +1,10 @@
-import { DEVICE_TYPES, PORT_MEDIA_TYPES, CATEGORIES, uHeightOf } from './data/devices.js';
+import { DEVICE_TYPES, CATEGORIES, uHeightOf } from './data/devices.js';
 import { createDevice } from './render/deviceFactory.js';
 import { computeMetrics } from './render/metrics.js';
 import { CableManager } from './render/cableManager.js';
+import { classifyConnection, rackByU } from './render/cableClassify.js';
 import { Persistence } from './features/persistence.js';
+import { computeBom, bomToCsv } from './features/bom.js';
 import { getPortCenterInSVG, cablePath } from './utils/geometry.js';
 import { Tooltip } from './ui/tooltip.js';
 import { Toast } from './ui/toast.js';
@@ -437,7 +439,9 @@ export const App = {
     svg.querySelectorAll('path.cable-path').forEach((p) => p.remove());
     document.querySelectorAll('.slot .led').forEach((led) => (led.className = 'led'));
 
-    const organizers = this.getState().rack.filter((d) => d.type === 'brush-panel').map((d) => d.u);
+    const state = this.getState();
+    const map = rackByU(state.rack);
+    const organizers = state.rack.filter((d) => d.type === 'brush-panel').map((d) => d.u);
     const counts = { std: 0, xg: 0, wan: 0, sfp: 0, patch: 0, conflict: 0 };
 
     this.connections.forEach((c, index) => {
@@ -458,7 +462,7 @@ export const App = {
         }
       });
 
-      const { color, kind } = this.classifyCable(c.from, c.to, portA, portB);
+      const { color, kind } = classifyConnection(map, c.from, c.to);
       counts[kind]++;
 
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -484,32 +488,6 @@ export const App = {
       ${metricRow('⚪ Patch jumpers', counts.patch, 'var(--text-muted)')}
       ${metricRow('❌ Media mismatch', counts.conflict, 'var(--accent-red)')}
     `;
-  },
-
-  classifyCable(fromId, toId, portA, portB) {
-    const ptypeA = this.portType(fromId);
-    const ptypeB = this.portType(toId);
-    const mediaA = PORT_MEDIA_TYPES[ptypeA];
-    const mediaB = PORT_MEDIA_TYPES[ptypeB];
-
-    if (mediaA !== 'any' && mediaB !== 'any' && mediaA !== mediaB) {
-      return { color: 'var(--accent-red)', kind: 'conflict' };
-    }
-    if (ptypeA === 'sfp' || ptypeB === 'sfp') return { color: 'var(--accent-sfp)', kind: 'sfp' };
-    if (ptypeA?.startsWith('wan') || ptypeB?.startsWith('wan')) return { color: 'var(--accent-red)', kind: 'wan' };
-    if (ptypeA?.includes('10g') || ptypeB?.includes('10g')) return { color: 'var(--accent-orange)', kind: 'xg' };
-
-    const aPatch = portA.closest('.device')?.dataset.type.startsWith('patch');
-    const bPatch = portB.closest('.device')?.dataset.type.startsWith('patch');
-    if (aPatch && bPatch) return { color: 'var(--patch-cable)', kind: 'patch' };
-    return { color: 'var(--accent-blue)', kind: 'std' };
-  },
-
-  portType(portId) {
-    const [uPart, pPart] = portId.split('-');
-    const dev = this.slot(parseInt(uPart.slice(1), 10))?.querySelector('.device');
-    if (!dev) return null;
-    return DEVICE_TYPES[dev.dataset.type].ports[parseInt(pPart.slice(1), 10)];
   },
 
   lightLED(port) {
@@ -598,6 +576,8 @@ export const App = {
     });
 
     document.getElementById('btn-export-png').addEventListener('click', (e) => exportPNG(e.currentTarget));
+    document.getElementById('btn-export-bom').addEventListener('click', () => this.downloadBom());
+    document.getElementById('btn-copy-bom').addEventListener('click', () => this.copyBom());
     document.getElementById('btn-copy-report').addEventListener('click', () => this.copyReport());
     document.getElementById('btn-share').addEventListener('click', () => this.copyShareLink());
     document.getElementById('btn-export-json').addEventListener('click', () => this.downloadJSON());
@@ -670,6 +650,29 @@ export const App = {
       .forEach((r) => (report += `[U${r.u}] ${DEVICE_TYPES[r.type].name}\n`));
     report += `\nCables: ${this.connections.length}`;
     this.copyText(report, 'Report copied to clipboard.');
+  },
+
+  downloadBom() {
+    const bom = computeBom(this.getState());
+    if (bom.deviceCount === 0) {
+      Toast.show('Rack is empty — nothing to export.');
+      return;
+    }
+    const blob = new Blob([bomToCsv(bom)], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `rack-bom-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  },
+
+  copyBom() {
+    const bom = computeBom(this.getState());
+    if (bom.deviceCount === 0) {
+      Toast.show('Rack is empty — nothing to export.');
+      return;
+    }
+    this.copyText(bomToCsv(bom), 'Bill of Materials copied to clipboard.');
   },
 
   copyShareLink() {
