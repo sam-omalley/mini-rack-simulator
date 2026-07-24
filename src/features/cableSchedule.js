@@ -16,7 +16,7 @@ export function computeSchedule(state) {
       const from = endpoint(map, labelsByU, c.from);
       const to = endpoint(map, labelsByU, c.to);
       const kind = classifyConnection(map, c.from, c.to).kind;
-      return { from, to, kind, kindLabel: CABLE_LABELS[kind] };
+      return { from, to, kind, kindLabel: CABLE_LABELS[kind], label: c.label || '' };
     })
     .sort((a, b) => a.from.u - b.from.u || a.from.port - b.from.port);
 }
@@ -34,9 +34,9 @@ function endpoint(map, labelsByU, portId) {
 }
 
 export function scheduleToCsv(schedule) {
-  const rows = [['From U', 'From Device', 'From Port', 'From Label', 'To U', 'To Device', 'To Port', 'To Label', 'Cable Type']];
+  const rows = [['From U', 'From Device', 'From Port', 'From Label', 'To U', 'To Device', 'To Port', 'To Label', 'Cable Type', 'Cable Label']];
   schedule.forEach((r) => {
-    rows.push([r.from.u, r.from.device, r.from.port, r.from.label, r.to.u, r.to.device, r.to.port, r.to.label, r.kindLabel]);
+    rows.push([r.from.u, r.from.device, r.from.port, r.from.label, r.to.u, r.to.device, r.to.port, r.to.label, r.kindLabel, r.label]);
   });
   return toCsv(rows);
 }

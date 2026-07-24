@@ -196,6 +196,12 @@
       </form>
     </dialog>
 
+    <div id="cable-editor" class="cable-editor" role="dialog" aria-label="Edit cable" hidden>
+      <input id="cable-label-input" class="cable-label-input" type="text" maxlength="30" placeholder="Cable label (e.g. AP-hallway)" aria-label="Cable label" />
+      <div id="cable-swatches" class="cable-swatches"></div>
+      <button id="cable-delete" class="btn btn-danger" type="button">Remove cable</button>
+    </div>
+
     <div id="global-tooltip" class="port-tooltip" role="tooltip" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

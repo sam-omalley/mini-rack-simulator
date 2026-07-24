@@ -100,6 +100,67 @@
   padding: 8px 18px;
 }
 
+/* Cable editor popover */
+.cable-editor {
+  position: fixed;
+  z-index: 9998;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+.cable-label-input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 12px;
+}
+.cable-label-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: var(--focus-ring);
+}
+.cable-swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+}
+.swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-color);
+}
+.swatch-active {
+  outline: 2px solid var(--text-color);
+  outline-offset: 1px;
+}
+.cable-editor .btn-danger {
+  padding: 6px;
+}
+
+/* Cable label tag in the schedule */
+.sched-tag {
+  flex-basis: 100%;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--accent-blue);
+}
+
 /* Custom device cards */
 .device-card-remove {
   float: right;
