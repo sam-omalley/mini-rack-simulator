@@ -195,6 +195,52 @@ kbd {
   padding: 6px;
 }
 
+/* Carrier bay fill menu (built dynamically, appended to <body>) */
+.bay-menu {
+  position: fixed;
+  z-index: 9998;
+  width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+.bay-menu-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 2px 4px 4px;
+}
+.bay-opt {
+  text-align: left;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 12px;
+  cursor: pointer;
+}
+.bay-opt:hover,
+.bay-opt:focus-visible {
+  border-color: var(--accent-blue);
+  outline: none;
+}
+.bay-opt--active {
+  border-color: var(--accent-blue);
+  font-weight: 600;
+}
+.bay-opt--empty {
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+
 /* Cable label tag in the schedule */
 .sched-tag {
   flex-basis: 100%;

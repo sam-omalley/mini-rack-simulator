@@ -109,7 +109,12 @@ function normalize(data) {
   const rack = Array.isArray(data?.rack)
     ? data.rack
         .filter((r) => r && typeof r.type === 'string' && Number.isFinite(r.u))
-        .map((r) => ({ u: r.u, type: r.type, labels: Array.isArray(r.labels) ? r.labels : [] }))
+        .map((r) => {
+          const item = { u: r.u, type: r.type, labels: Array.isArray(r.labels) ? r.labels : [] };
+          // Carrier bay fills: array of sub-type keys, null for empty bays.
+          if (Array.isArray(r.fills)) item.fills = r.fills.map((f) => (typeof f === 'string' && f ? f : null));
+          return item;
+        })
     : [];
   const connections = Array.isArray(data?.connections)
     ? data.connections

@@ -36,4 +36,20 @@ describe('computeMetrics', () => {
     expect(m.totalWatts).toBe(0);
     expect(m.thermalLevel).toBe('cool');
   });
+
+  it('adds power and heat from fitted carrier sub-components', () => {
+    // drive-cage-6: 2 W / heat 1. hdd-2tb: 2 W / heat 1 each. ssd-1tb: 1 W / heat 0.
+    const base = computeMetrics([{ u: 1, type: 'drive-cage-6' }], 6);
+    expect(base.totalWatts).toBe(2);
+    expect(base.heat).toBe(1);
+
+    const filled = computeMetrics([{ u: 1, type: 'drive-cage-6', fills: ['hdd-2tb', 'hdd-2tb', 'ssd-1tb', null, null, null] }], 6);
+    expect(filled.totalWatts).toBe(2 + 2 + 2 + 1);
+    expect(filled.heat).toBe(1 + 1 + 1 + 0);
+  });
+
+  it('ignores empty and unknown bay fills', () => {
+    const m = computeMetrics([{ u: 1, type: 'drive-cage-6', fills: [null, 'nonsense', undefined] }], 6);
+    expect(m.totalWatts).toBe(2); // just the cage itself
+  });
 });
