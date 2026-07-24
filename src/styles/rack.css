@@ -35,6 +35,16 @@ svg path.cable-path:hover {
   filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
 }
 
+/* Focus mode: emphasise one device's cables, dim the rest. */
+#cable-svg.focusing path.cable-path {
+  opacity: 0.14;
+  transition: opacity 0.15s, stroke-width 0.15s;
+}
+#cable-svg.focusing path.cable-path.cable-focus {
+  opacity: 1;
+  stroke-width: 4px;
+}
+
 @keyframes cableFlow {
   from {
     stroke-dashoffset: 200;

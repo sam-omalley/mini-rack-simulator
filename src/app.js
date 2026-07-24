@@ -326,12 +326,19 @@ export const App = {
       this.labelTimer = setTimeout(() => this.commit(), 500);
     });
 
-    // Tooltips via delegation (pointer + keyboard).
-    this.$slots.addEventListener('pointerover', (e) => this.maybeTooltip(e, true));
+    // Tooltips + cable highlight via delegation (pointer + keyboard).
+    this.$slots.addEventListener('pointerover', (e) => {
+      this.maybeTooltip(e, true);
+      this.highlightCablesFor(e.target.closest('.device.placed'));
+    });
     this.$slots.addEventListener('pointerout', (e) => {
       if (e.target.closest('.port-rj45')) Tooltip.hide();
     });
-    this.$slots.addEventListener('focusin', (e) => this.maybeTooltip(e, false));
+    this.$slots.addEventListener('pointerleave', () => this.highlightCablesFor(null));
+    this.$slots.addEventListener('focusin', (e) => {
+      this.maybeTooltip(e, false);
+      this.highlightCablesFor(e.target.closest('.device.placed'));
+    });
     this.$slots.addEventListener('focusout', (e) => {
       if (e.target.closest('.port-rj45')) Tooltip.hide();
     });
@@ -342,6 +349,23 @@ export const App = {
     if (!port || !port.dataset.portId) return;
     const [uPart, pPart] = port.dataset.portId.split('-');
     Tooltip.show(port, port.dataset.ptype, parseInt(uPart.slice(1), 10), parseInt(pPart.slice(1), 10));
+  },
+
+  /** Emphasise the cables touching a device; dim the rest. Pass null to clear. */
+  highlightCablesFor(device) {
+    const u = device ? parseInt(device.parentElement.dataset.u, 10) : null;
+    if (this._hlU === u) return;
+    this._hlU = u;
+
+    const paths = this.$svg.querySelectorAll('path.cable-path');
+    let any = false;
+    paths.forEach((p) => {
+      const [a, b] = (p.dataset.uPair || '').split('|').map(Number);
+      const on = u != null && (a === u || b === u);
+      p.classList.toggle('cable-focus', on);
+      if (on) any = true;
+    });
+    this.$svg.classList.toggle('focusing', any);
   },
 
   handleDrop(slot) {
@@ -569,6 +593,8 @@ export const App = {
     const svg = this.$svg;
     if (!svg) return;
     svg.querySelectorAll('path.cable-path').forEach((p) => p.remove());
+    svg.classList.remove('focusing');
+    this._hlU = undefined;
     document.querySelectorAll('.slot .led').forEach((led) => (led.className = 'led'));
 
     const state = this.getState();
@@ -599,6 +625,7 @@ export const App = {
 
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('class', 'cable-path');
+      path.dataset.uPair = `${uA}|${uB}`;
       path.setAttribute('d', cablePath(a.x, a.y, b.x, b.y, routeY));
       path.setAttribute('stroke', color);
       path.setAttribute('stroke-width', '2.8');
