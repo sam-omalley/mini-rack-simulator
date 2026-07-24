@@ -72,7 +72,14 @@ function normalize(data) {
         .map((r) => ({ u: r.u, type: r.type, labels: Array.isArray(r.labels) ? r.labels : [] }))
     : [];
   const connections = Array.isArray(data?.connections)
-    ? data.connections.filter((c) => c && typeof c.from === 'string' && typeof c.to === 'string')
+    ? data.connections
+        .filter((c) => c && typeof c.from === 'string' && typeof c.to === 'string')
+        .map((c) => {
+          const out = { from: c.from, to: c.to };
+          if (typeof c.label === 'string' && c.label) out.label = c.label;
+          if (typeof c.color === 'string' && c.color) out.color = c.color;
+          return out;
+        })
     : [];
   const custom = Array.isArray(data?.custom)
     ? data.custom.filter((d) => d && typeof d.type === 'string' && Array.isArray(d.ports))
