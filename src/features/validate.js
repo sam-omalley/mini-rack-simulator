@@ -77,10 +77,18 @@ export function validateRack(state) {
   const pdu = computePdu(state);
   if (pdu.hasSource) {
     if (pdu.capacityOver) {
-      warnings.push({ severity: 'error', code: 'pdu-capacity', message: `Rack draw (${pdu.load} W) exceeds PDU capacity (${pdu.capacity} W).` });
+      warnings.push({
+        severity: 'error',
+        code: 'pdu-capacity',
+        message: `Rack draw (${pdu.load} W) exceeds PDU capacity (${pdu.capacity} W).`,
+      });
     }
     if (pdu.outletsOver) {
-      warnings.push({ severity: 'warn', code: 'pdu-outlets', message: `Not enough PDU outlets: ${pdu.outletsNeeded} needed, ${pdu.outletsAvail} available.` });
+      warnings.push({
+        severity: 'warn',
+        code: 'pdu-outlets',
+        message: `Not enough PDU outlets: ${pdu.outletsNeeded} needed, ${pdu.outletsAvail} available.`,
+      });
     }
   }
 

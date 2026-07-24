@@ -27,7 +27,9 @@ svg path.cable-path {
   pointer-events: visibleStroke;
   stroke-dasharray: 8, 3;
   animation: cableFlow 12s linear infinite;
-  transition: stroke-width 0.2s, stroke 0.2s;
+  transition:
+    stroke-width 0.2s,
+    stroke 0.2s;
 }
 svg path.cable-path:hover {
   stroke-width: 4.5px !important;
@@ -38,7 +40,9 @@ svg path.cable-path:hover {
 /* Focus mode: emphasise one device's cables, dim the rest. */
 #cable-svg.focusing path.cable-path {
   opacity: 0.14;
-  transition: opacity 0.15s, stroke-width 0.15s;
+  transition:
+    opacity 0.15s,
+    stroke-width 0.15s;
 }
 #cable-svg.focusing path.cable-path.cable-focus {
   opacity: 1;
@@ -60,7 +64,9 @@ svg path.cable-path:hover {
   padding: 24px;
   background: #1e293b;
   border: 2px solid #475569;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5), 0 20px 40px -10px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.5),
+    0 20px 40px -10px rgba(0, 0, 0, 0.4);
 }
 
 .rack-top-handles {

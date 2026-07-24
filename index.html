@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -9,7 +9,10 @@
     />
     <meta name="color-scheme" content="light dark" />
     <title>Mini Rack Simulator — 10-inch Rack Planner</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%230055ff'/%3E%3Crect x='3' y='4' width='10' height='2' rx='.5' fill='white'/%3E%3Crect x='3' y='7' width='10' height='2' rx='.5' fill='white'/%3E%3Crect x='3' y='10' width='10' height='2' rx='.5' fill='white'/%3E%3C/svg%3E" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%230055ff'/%3E%3Crect x='3' y='4' width='10' height='2' rx='.5' fill='white'/%3E%3Crect x='3' y='7' width='10' height='2' rx='.5' fill='white'/%3E%3Crect x='3' y='10' width='10' height='2' rx='.5' fill='white'/%3E%3C/svg%3E"
+    />
   </head>
   <body>
     <a class="skip-link" href="#rack-stage">Skip to rack</a>
@@ -22,7 +25,16 @@
       <div class="app-toolbar" role="toolbar" aria-label="Global actions">
         <button id="btn-undo" class="btn btn-icon" type="button" aria-label="Undo" disabled title="Undo (Ctrl/Cmd+Z)">↶</button>
         <button id="btn-redo" class="btn btn-icon" type="button" aria-label="Redo" disabled title="Redo (Ctrl/Cmd+Shift+Z)">↷</button>
-        <button id="btn-help" class="btn btn-icon" type="button" aria-haspopup="dialog" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+        <button
+          id="btn-help"
+          class="btn btn-icon"
+          type="button"
+          aria-haspopup="dialog"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+        >
+          ?
+        </button>
         <button id="btn-theme" class="btn" type="button" aria-pressed="false">🌙 Dark</button>
       </div>
     </header>
@@ -32,7 +44,16 @@
       <aside class="panel sidebar" aria-label="Device library">
         <div class="panel-title">
           Device Library
-          <button id="btn-sidebar-toggle" class="btn btn-icon sidebar-toggle" type="button" aria-expanded="true" aria-controls="sidebar-body" aria-label="Collapse device library">▾</button>
+          <button
+            id="btn-sidebar-toggle"
+            class="btn btn-icon sidebar-toggle"
+            type="button"
+            aria-expanded="true"
+            aria-controls="sidebar-body"
+            aria-label="Collapse device library"
+          >
+            ▾
+          </button>
         </div>
         <div id="sidebar-body" class="sidebar-body">
           <input
@@ -59,7 +80,9 @@
           <span id="zoom-label" class="zoom-label" aria-live="polite">100%</span>
           <button id="btn-zoom-in" class="btn btn-icon" type="button" aria-label="Zoom in">+</button>
           <button id="btn-zoom-reset" class="btn" type="button">Reset</button>
-          <button id="btn-face" class="btn" type="button" aria-pressed="false" title="Flip between the front (ports) and rear (power) side">🔀 Front</button>
+          <button id="btn-face" class="btn" type="button" aria-pressed="false" title="Flip between the front (ports) and rear (power) side">
+            🔀 Front
+          </button>
         </div>
         <div class="rack-wrapper-container">
           <div class="rack-wrapper" id="rack-wrapper">
@@ -147,7 +170,14 @@
           <div class="panel-title">Saved Layouts</div>
           <div class="button-group">
             <div class="button-row">
-              <input id="layout-name" class="layout-name-input" type="text" maxlength="40" placeholder="Layout name" aria-label="Layout name" />
+              <input
+                id="layout-name"
+                class="layout-name-input"
+                type="text"
+                maxlength="40"
+                placeholder="Layout name"
+                aria-label="Layout name"
+              />
               <button id="btn-save-layout" class="btn" type="button">Save</button>
             </div>
             <div class="button-row">
@@ -224,16 +254,46 @@
       <div class="modal-form">
         <h2 class="modal-title">Keyboard Shortcuts</h2>
         <dl class="shortcuts">
-          <div><dt>Place a device</dt><dd>Tap a library card, then a slot — or drag it</dd></div>
-          <div><dt>Patch a cable</dt><dd>Drag between two ports, or focus a port and press <kbd>Enter</kbd></dd></div>
-          <div><dt>Edit / remove a cable</dt><dd>Click the cable</dd></div>
-          <div><dt>Select</dt><dd>Click a device · <kbd>Shift</kbd>/<kbd>Ctrl</kbd>-click for multiple</dd></div>
-          <div><dt>Move selected</dt><dd><kbd>↑</kbd> <kbd>↓</kbd></dd></div>
-          <div><dt>Duplicate selected</dt><dd><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>D</kbd></dd></div>
-          <div><dt>Delete selected</dt><dd><kbd>Delete</kbd> / <kbd>Backspace</kbd></dd></div>
-          <div><dt>Undo / Redo</dt><dd><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Z</kbd> · add <kbd>Shift</kbd> to redo</dd></div>
-          <div><dt>Cancel / clear selection</dt><dd><kbd>Esc</kbd></dd></div>
-          <div><dt>This help</dt><dd><kbd>?</kbd></dd></div>
+          <div>
+            <dt>Place a device</dt>
+            <dd>Tap a library card, then a slot — or drag it</dd>
+          </div>
+          <div>
+            <dt>Patch a cable</dt>
+            <dd>Drag between two ports, or focus a port and press <kbd>Enter</kbd></dd>
+          </div>
+          <div>
+            <dt>Edit / remove a cable</dt>
+            <dd>Click the cable</dd>
+          </div>
+          <div>
+            <dt>Select</dt>
+            <dd>Click a device · <kbd>Shift</kbd>/<kbd>Ctrl</kbd>-click for multiple</dd>
+          </div>
+          <div>
+            <dt>Move selected</dt>
+            <dd><kbd>↑</kbd> <kbd>↓</kbd></dd>
+          </div>
+          <div>
+            <dt>Duplicate selected</dt>
+            <dd><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>D</kbd></dd>
+          </div>
+          <div>
+            <dt>Delete selected</dt>
+            <dd><kbd>Delete</kbd> / <kbd>Backspace</kbd></dd>
+          </div>
+          <div>
+            <dt>Undo / Redo</dt>
+            <dd><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Z</kbd> · add <kbd>Shift</kbd> to redo</dd>
+          </div>
+          <div>
+            <dt>Cancel / clear selection</dt>
+            <dd><kbd>Esc</kbd></dd>
+          </div>
+          <div>
+            <dt>This help</dt>
+            <dd><kbd>?</kbd></dd>
+          </div>
         </dl>
         <div class="modal-actions">
           <button id="help-close" class="btn btn-primary" type="button">Close</button>
@@ -242,7 +302,14 @@
     </dialog>
 
     <div id="cable-editor" class="cable-editor" role="dialog" aria-label="Edit cable" hidden>
-      <input id="cable-label-input" class="cable-label-input" type="text" maxlength="30" placeholder="Cable label (e.g. AP-hallway)" aria-label="Cable label" />
+      <input
+        id="cable-label-input"
+        class="cable-label-input"
+        type="text"
+        maxlength="30"
+        placeholder="Cable label (e.g. AP-hallway)"
+        aria-label="Cable label"
+      />
       <div id="cable-swatches" class="cable-swatches"></div>
       <button id="cable-delete" class="btn btn-danger" type="button">Remove cable</button>
     </div>

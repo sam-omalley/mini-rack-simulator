@@ -514,7 +514,7 @@ export const App = {
 
     // Tooltips + cable highlight via delegation (pointer + keyboard).
     this.$slots.addEventListener('pointerover', (e) => {
-      this.maybeTooltip(e, true);
+      this.maybeTooltip(e);
       this.highlightCablesFor(e.target.closest('.device.placed'));
     });
     this.$slots.addEventListener('pointerout', (e) => {
@@ -522,7 +522,7 @@ export const App = {
     });
     this.$slots.addEventListener('pointerleave', () => this.highlightCablesFor(null));
     this.$slots.addEventListener('focusin', (e) => {
-      this.maybeTooltip(e, false);
+      this.maybeTooltip(e);
       this.highlightCablesFor(e.target.closest('.device.placed'));
     });
     this.$slots.addEventListener('focusout', (e) => {
@@ -530,7 +530,7 @@ export const App = {
     });
   },
 
-  maybeTooltip(e, isPointer) {
+  maybeTooltip(e) {
     const port = e.target.closest('.port-rj45');
     if (!port || !port.dataset.portId) return;
     const [uPart, pPart] = port.dataset.portId.split('-');
@@ -644,7 +644,9 @@ export const App = {
     const selected = this.selected();
     if (selected.length === 0) return;
     // Every device must fit at its shifted position, ignoring the moving set.
-    const ok = selected.every((d) => this.canPlace(parseInt(d.parentElement.dataset.u, 10) + direction, uHeightOf(d.dataset.type), selected));
+    const ok = selected.every((d) =>
+      this.canPlace(parseInt(d.parentElement.dataset.u, 10) + direction, uHeightOf(d.dataset.type), selected)
+    );
     if (!ok) return;
     // Move in travel order so appends never land on an occupied slot mid-shift.
     const ordered = selected.sort((a, b) => {
