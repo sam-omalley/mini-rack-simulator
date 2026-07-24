@@ -89,3 +89,20 @@
   display: flex;
   gap: 8px;
 }
+.layout-name-input,
+.layout-select {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 12px;
+}
+.layout-name-input:focus,
+.layout-select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: var(--focus-ring);
+}

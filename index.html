@@ -143,6 +143,23 @@
         </div>
 
         <div class="panel">
+          <div class="panel-title">Saved Layouts</div>
+          <div class="button-group">
+            <div class="button-row">
+              <input id="layout-name" class="layout-name-input" type="text" maxlength="40" placeholder="Layout name" aria-label="Layout name" />
+              <button id="btn-save-layout" class="btn" type="button">Save</button>
+            </div>
+            <div class="button-row">
+              <select id="layout-select" class="layout-select" aria-label="Saved layouts">
+                <option value="">— saved layouts —</option>
+              </select>
+              <button id="btn-load-layout" class="btn" type="button">Load</button>
+              <button id="btn-delete-layout" class="btn btn-danger btn-icon" type="button" aria-label="Delete selected layout">×</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
           <div class="panel-title">Export &amp; Data</div>
           <div class="button-group">
             <button id="btn-export-png" class="btn btn-primary" type="button">📸 Export PNG</button>
