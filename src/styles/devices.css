@@ -17,23 +17,25 @@ body.dark-mode .device:not(.placed) {
   border-color: #475569;
 }
 
+/* Height is set inline from uHeight (deviceFactory) to support 0.5U steps. */
 .device.placed {
   position: absolute;
   top: 0;
   left: 0;
   width: 320px !important;
-  height: 100%;
   z-index: 10;
   border: none;
   animation: snapEffect 0.15s ease-out;
 }
-.device.u-2.placed {
-  height: 100px !important;
-  z-index: 20;
+/* Shrink faceplates for sub-1U devices so chassis/ports fit the ~22px height. */
+.device.u-half .unifi-chassis,
+.device.u-half .dell-chassis,
+.device.u-half .pdu-chassis {
+  height: 18px;
+  padding: 0 6px;
 }
-.device.u-3.placed {
-  height: 152px !important;
-  z-index: 20;
+.device.u-half .bracket-3d {
+  align-items: center;
 }
 .device.placed:focus-within,
 .device.placed.selected {

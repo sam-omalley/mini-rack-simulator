@@ -4,7 +4,7 @@
  * Every entry describes one piece of rack equipment:
  *   name        Human-readable label shown in the library and reports.
  *   ports       Ordered list of port type keys (see PORT_SPECS). Empty = no ports.
- *   uHeight     Rack units the device occupies (1–3).
+ *   uHeight     Rack units the device occupies (0.5–3, in 0.5 steps).
  *   bracket     True if the device mounts on a 10" adapter bracket.
  *   bracketWidth Visual width of the chassis inside the bracket, in px.
  *   layout      Optional custom faceplate renderer key.
@@ -286,6 +286,20 @@ export const DEVICE_TYPES = {
     heatWeight: 1,
   },
   'shelf-1u': { name: '1U Vented Shelf', ports: [], uHeight: 1, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
+
+  // Half-height (0.5U)
+  'blank-half': { name: '0.5U Blank Panel', ports: [], uHeight: 0.5, watts: 0, poeBudget: 0, heatWeight: 0 },
+  'shelf-half': { name: '0.5U Vented Shelf', ports: [], uHeight: 0.5, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
+  'pi-half': {
+    name: '0.5U Single-Pi Mount',
+    ports: ['gbe'],
+    uHeight: 0.5,
+    bracket: true,
+    bracketWidth: 120,
+    watts: 5,
+    poeBudget: 0,
+    heatWeight: 1,
+  },
 };
 
 /** Port metadata for tooltips. */
@@ -344,6 +358,7 @@ export const CATEGORIES = [
   { title: '💻 Servers & Mini PCs', types: ['dell-optiplex-micro', 'synology-nas-2bay'] },
   { title: '🌍 Other Vendors', types: ['mikrotik-crs310'] },
   { title: '🔩 Power & Accessories', types: ['pdu-8', 'ups-1u', 'shelf-1u'] },
+  { title: '📐 Half-Height (0.5U)', types: ['blank-half', 'shelf-half', 'pi-half'] },
 ];
 
 /** Convenience: uHeight with a safe default. */

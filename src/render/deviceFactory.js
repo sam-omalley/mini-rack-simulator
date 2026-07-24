@@ -1,4 +1,6 @@
 import { DEVICE_TYPES } from '../data/devices.js';
+import { deviceHeightPx, previewHeightPx } from './grid.js';
+import { makePortId } from '../utils/ports.js';
 
 /**
  * Builds the DOM for a device. Pure construction — no event wiring.
@@ -13,8 +15,10 @@ export function createDevice(type, uSlot = null) {
   if (!spec) return null;
 
   const dev = el('div', 'device');
-  if (spec.uHeight === 2) dev.classList.add('u-2');
-  if (spec.uHeight === 3) dev.classList.add('u-3');
+  // Height is computed from uHeight (supports 0.5U steps) rather than fixed
+  // per-U classes. `u-half` lets CSS shrink faceplates for sub-1U devices.
+  dev.style.height = `${uSlot ? deviceHeightPx(spec.uHeight) : previewHeightPx(spec.uHeight)}px`;
+  if (spec.uHeight < 1) dev.classList.add('u-half');
   dev.dataset.type = type;
   dev.tabIndex = 0;
   dev.setAttribute('role', 'group');
@@ -177,7 +181,7 @@ function createRJ45(ptype, idx, uSlot) {
   port.dataset.ptype = ptype;
   port.dataset.portIdx = String(idx);
   if (uSlot) {
-    port.dataset.portId = `u${uSlot}-p${idx}`;
+    port.dataset.portId = makePortId(uSlot, idx);
     port.setAttribute('role', 'button');
     port.setAttribute('aria-label', `Port ${idx + 1}, ${ptype}. Activate to patch a cable.`);
   }

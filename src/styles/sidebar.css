@@ -104,13 +104,4 @@
   color: var(--text-muted);
 }
 
-/* Sidebar preview device sizing */
-.device-card .device {
-  height: 38px;
-}
-.device-card .device.u-2 {
-  height: 76px;
-}
-.device-card .device.u-3 {
-  height: 114px;
-}
+/* Sidebar preview device height is set inline from uHeight (deviceFactory). */

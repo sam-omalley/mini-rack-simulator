@@ -59,7 +59,7 @@ export const CustomDevices = {
       type: `custom-${slug(cleanName)}-${Date.now().toString(36)}`,
       name: cleanName,
       ports: portList,
-      uHeight: clamp(uHeight, 1, 3),
+      uHeight: clamp(uHeight, 0.5, 3),
       bracket: true,
       bracketWidth: clamp(60 + portList.length * 20, 90, 280),
       watts: w,
@@ -108,7 +108,9 @@ function slug(s) {
   );
 }
 
+// Parse a U height, snap to the nearest 0.5, and clamp into range.
 function clamp(n, lo, hi) {
-  const parsed = parseInt(n, 10);
-  return Math.max(lo, Math.min(hi, Number.isNaN(parsed) ? lo : parsed));
+  const parsed = parseFloat(n);
+  const snapped = Math.round((Number.isNaN(parsed) ? lo : parsed) * 2) / 2;
+  return Math.max(lo, Math.min(hi, snapped));
 }
