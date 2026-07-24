@@ -8,6 +8,7 @@ import { Persistence } from './features/persistence.js';
 import { computeBom, bomToCsv } from './features/bom.js';
 import { computeSchedule, scheduleToCsv } from './features/cableSchedule.js';
 import { Pricing, priceFn } from './features/pricing.js';
+import { validateRack } from './features/validate.js';
 import { getPortCenterInSVG, cablePath } from './utils/geometry.js';
 import { Tooltip } from './ui/tooltip.js';
 import { Toast } from './ui/toast.js';
@@ -64,6 +65,8 @@ export const App = {
     this.$costList = document.getElementById('cost-list');
     this.$costTotal = document.getElementById('cost-total');
     this.$costNote = document.getElementById('cost-note');
+    this.$warnings = document.getElementById('warnings-list');
+    this.$warningsCount = document.getElementById('warnings-count');
     this.$hint = document.getElementById('placement-hint');
   },
 
@@ -517,6 +520,7 @@ export const App = {
     this.updateReport();
     this.updateCableSchedule();
     this.updateCostSummary();
+    this.updateWarnings();
     this.updatePowerSummary();
     Persistence.save(this.getState());
   },
@@ -724,6 +728,24 @@ export const App = {
       const el = this.$costList.querySelector(`[data-cost-sub="${i.type}"]`);
       if (el) el.textContent = i.subtotal != null ? formatMoney(i.subtotal, Pricing.currency) : '—';
     });
+  },
+
+  updateWarnings() {
+    const warnings = validateRack(this.getState());
+    this.$warningsCount.textContent = warnings.length;
+    if (warnings.length === 0) {
+      this.$warnings.innerHTML = '<div class="warning-ok">✓ No issues detected.</div>';
+      return;
+    }
+    const icon = { error: '❌', warn: '⚠️', info: 'ℹ️' };
+    this.$warnings.innerHTML = warnings
+      .map(
+        (w) => `<div class="warning-item warning-${w.severity}" role="listitem">
+          <span class="warning-icon">${icon[w.severity]}</span>
+          <span>${escapeHtml(w.message)}</span>
+        </div>`
+      )
+      .join('');
   },
 
   updatePowerSummary() {
