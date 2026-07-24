@@ -78,6 +78,11 @@ function buildBracket(type, spec, uSlot) {
         <span class="hud-gauge">FPS<br>60</span>
       </div>`;
     bracket.appendChild(screen);
+  } else if (spec.layout === 'pdu') {
+    const chassis = el('div', 'pdu-chassis');
+    chassis.style.width = `${spec.bracketWidth}px`;
+    for (let i = 0; i < (spec.outlets || 0); i++) chassis.appendChild(el('span', 'pdu-outlet'));
+    bracket.appendChild(chassis);
   } else if (spec.layout === 'deskpi-dp0039' || spec.layout === 'deskpi-dp0046') {
     const chassis = el('div', 'deskpi-chassis');
     spec.ports.forEach((ptype, idx) => {
