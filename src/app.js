@@ -1235,6 +1235,10 @@ export const App = {
     // Reveal the fine (0.5U) grid while Alt is held.
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Alt') {
+        // Firefox focuses the menu bar on a bare Alt, which fires window blur
+        // (clearing the grid) and steals focus. Suppress that default so the
+        // hold-Alt reveal actually sticks; Alt+key combos are unaffected.
+        e.preventDefault();
         this._altHeld = true;
         this.refreshHalfGrid();
       }
@@ -1245,6 +1249,15 @@ export const App = {
     };
     document.addEventListener('keyup', (e) => e.key === 'Alt' && clearAlt());
     window.addEventListener('blur', clearAlt);
+    // Robust fallback: keep the reveal in sync with the live Alt state as the
+    // pointer moves over the rack, in case a key event was missed (e.g. focus
+    // was elsewhere when Alt was pressed).
+    this.$slots.addEventListener('pointermove', (e) => {
+      if (e.altKey !== this._altHeld) {
+        this._altHeld = e.altKey;
+        this.refreshHalfGrid();
+      }
+    });
   },
 
   /**
