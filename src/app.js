@@ -1,4 +1,5 @@
-import { DEVICE_TYPES, CATEGORIES, uHeightOf } from './data/devices.js';
+import { DEVICE_TYPES, PORT_SPECS, CATEGORIES, uHeightOf } from './data/devices.js';
+import { CustomDevices } from './features/customDevices.js';
 import { createDevice } from './render/deviceFactory.js';
 import { computeMetrics } from './render/metrics.js';
 import { CableManager } from './render/cableManager.js';
@@ -35,9 +36,12 @@ export const App = {
     Toast.init();
     Theme.init();
     Pricing.load();
+    CustomDevices.load();
 
     this.cacheDom();
     this.renderSidebar();
+    this.renderCustomSection();
+    this.setupDeviceModal();
     this.bindGlobalControls();
     this.bindDelegatedEvents();
     CableManager.init(this);
@@ -74,27 +78,7 @@ export const App = {
       block.className = 'sidebar-category';
       block.innerHTML = `<div class="category-title">${cat.title}</div>`;
 
-      cat.types.forEach((type) => {
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'device-card';
-        card.draggable = true;
-        card.dataset.deviceType = type;
-        card.setAttribute('aria-label', `Add ${DEVICE_TYPES[type].name}`);
-        card.innerHTML = `<span class="device-card-title">${DEVICE_TYPES[type].name}</span>`;
-        card.appendChild(createDevice(type));
-
-        card.addEventListener('dragstart', (e) => {
-          this.draggedEl = card;
-          this.fromSidebar = true;
-          e.dataTransfer.effectAllowed = 'copy';
-          card.classList.add('dragging');
-        });
-        card.addEventListener('dragend', () => card.classList.remove('dragging'));
-        card.addEventListener('click', () => this.togglePlacement(type));
-
-        block.appendChild(card);
-      });
+      cat.types.forEach((type) => block.appendChild(this.buildDeviceCard(type)));
       container.appendChild(block);
     });
 
@@ -116,6 +100,131 @@ export const App = {
       e.currentTarget.setAttribute('aria-expanded', String(!collapsed));
       e.currentTarget.textContent = collapsed ? '▸' : '▾';
     });
+  },
+
+  /** Build a draggable/tappable library card for a device type. */
+  buildDeviceCard(type, { removable = false } = {}) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'device-card';
+    card.draggable = true;
+    card.dataset.deviceType = type;
+    card.setAttribute('aria-label', `Add ${DEVICE_TYPES[type].name}`);
+    card.innerHTML = `<span class="device-card-title">${escapeHtml(DEVICE_TYPES[type].name)}</span>`;
+    if (removable) {
+      const del = document.createElement('span');
+      del.className = 'device-card-remove';
+      del.dataset.removeType = type;
+      del.setAttribute('role', 'button');
+      del.setAttribute('aria-label', `Delete custom device ${DEVICE_TYPES[type].name}`);
+      del.textContent = '×';
+      card.querySelector('.device-card-title').appendChild(del);
+    }
+    card.appendChild(createDevice(type));
+
+    card.addEventListener('dragstart', (e) => {
+      this.draggedEl = card;
+      this.fromSidebar = true;
+      e.dataTransfer.effectAllowed = 'copy';
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-remove-type]')) {
+        e.stopPropagation();
+        this.removeCustomDevice(type);
+        return;
+      }
+      this.togglePlacement(type);
+    });
+    return card;
+  },
+
+  renderCustomSection() {
+    const list = document.getElementById('custom-devices-list');
+    list.innerHTML = '';
+    const customs = CustomDevices.list();
+    if (customs.length === 0) {
+      list.innerHTML = '<p class="custom-empty text-muted">None yet. Add gear not in the catalog.</p>';
+    } else {
+      customs.forEach((def) => list.appendChild(this.buildDeviceCard(def.type, { removable: true })));
+    }
+  },
+
+  removeCustomDevice(type) {
+    const inUse = this.getState().rack.some((r) => r.type === type);
+    if (inUse && !confirm('This custom device is placed in the rack. Delete it and remove those units?')) return;
+    document.querySelectorAll(`.slot .device[data-type="${type}"]`).forEach((d) => this.removeDevice(d));
+    CustomDevices.remove(type);
+    if (this.placingType === type) {
+      this.placingType = null;
+      this.updatePlacementUi();
+    }
+    this.renderCustomSection();
+  },
+
+  /* -------------------------------------------------- Custom device modal */
+
+  setupDeviceModal() {
+    this.$modal = document.getElementById('device-modal');
+    const form = document.getElementById('device-form');
+    const portsHost = document.getElementById('cd-ports');
+
+    document.getElementById('btn-new-custom').addEventListener('click', () => this.openDeviceModal());
+    document.getElementById('cd-cancel').addEventListener('click', () => this.$modal.close());
+    document.getElementById('cd-add-port').addEventListener('click', () => this.addPortRow());
+
+    portsHost.addEventListener('click', (e) => {
+      if (e.target.closest('[data-remove-port]')) e.target.closest('.port-row').remove();
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.submitDeviceForm();
+    });
+  },
+
+  openDeviceModal() {
+    document.getElementById('cd-name').value = '';
+    document.getElementById('cd-uheight').value = '1';
+    document.getElementById('cd-watts').value = '';
+    document.getElementById('cd-ports').innerHTML = '';
+    this.addPortRow();
+    this.$modal.showModal();
+    document.getElementById('cd-name').focus();
+  },
+
+  addPortRow() {
+    const row = document.createElement('div');
+    row.className = 'port-row';
+    const options = Object.entries(PORT_SPECS)
+      .map(([key, spec]) => `<option value="${key}">${escapeHtml(spec.title)}</option>`)
+      .join('');
+    row.innerHTML = `
+      <input class="port-count" type="number" min="1" max="48" value="1" aria-label="Port count" />
+      <span class="port-times">×</span>
+      <select class="port-type" aria-label="Port type">${options}</select>
+      <button type="button" class="btn btn-icon" data-remove-port aria-label="Remove port row">×</button>`;
+    document.getElementById('cd-ports').appendChild(row);
+  },
+
+  submitDeviceForm() {
+    const name = document.getElementById('cd-name').value;
+    const uHeight = document.getElementById('cd-uheight').value;
+    const watts = document.getElementById('cd-watts').value;
+
+    const ports = [];
+    document.querySelectorAll('#cd-ports .port-row').forEach((row) => {
+      const count = Math.max(1, Math.min(48, parseInt(row.querySelector('.port-count').value, 10) || 1));
+      const type = row.querySelector('.port-type').value;
+      for (let i = 0; i < count; i++) ports.push(type);
+    });
+    if (ports.length > 48) ports.length = 48;
+
+    CustomDevices.create({ name, uHeight, ports, watts });
+    this.renderCustomSection();
+    this.$modal.close();
+    Toast.show('Custom device added to the library.');
   },
 
   /* --------------------------------------------------- Tap-to-place (a11y) */
@@ -330,11 +439,19 @@ export const App = {
         rack.push({ u, type: dev.dataset.type, labels });
       }
     }
-    return { maxU: this.maxU, rack, connections: structuredClone(this.connections) };
+    return {
+      maxU: this.maxU,
+      rack,
+      connections: structuredClone(this.connections),
+      custom: CustomDevices.usedBy(rack),
+    };
   },
 
   /** Rebuild the rack DOM from a state object. */
   loadState(state, { record = false, resetHistory = false } = {}) {
+    // A shared/imported layout may reference custom devices we don't have yet.
+    if (CustomDevices.ensureRegistered(state.custom)) this.renderCustomSection();
+
     this.maxU = state.maxU;
     document.getElementById('input-max-u').value = this.maxU;
     this.renderSlots();

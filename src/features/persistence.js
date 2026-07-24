@@ -74,7 +74,10 @@ function normalize(data) {
   const connections = Array.isArray(data?.connections)
     ? data.connections.filter((c) => c && typeof c.from === 'string' && typeof c.to === 'string')
     : [];
-  return { maxU, rack, connections };
+  const custom = Array.isArray(data?.custom)
+    ? data.custom.filter((d) => d && typeof d.type === 'string' && Array.isArray(d.ports))
+    : [];
+  return { maxU, rack, connections, custom };
 }
 
 function clamp(n, min, max) {

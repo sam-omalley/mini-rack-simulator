@@ -43,6 +43,11 @@
           />
           <p class="placement-hint" id="placement-hint" hidden></p>
           <div id="sidebar-categories"></div>
+          <div class="sidebar-category">
+            <div class="category-title">🛠️ Custom Devices</div>
+            <div id="custom-devices-list"></div>
+            <button id="btn-new-custom" class="btn" type="button">+ New custom device</button>
+          </div>
         </div>
       </aside>
 
@@ -148,6 +153,39 @@
         </div>
       </aside>
     </main>
+
+    <dialog id="device-modal" class="modal" aria-label="New custom device">
+      <form id="device-form" class="modal-form">
+        <h2 class="modal-title">New Custom Device</h2>
+        <label class="field">
+          <span>Name</span>
+          <input id="cd-name" type="text" required maxlength="40" placeholder="e.g. Synology NAS" />
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Height (U)</span>
+            <select id="cd-uheight">
+              <option value="1">1U</option>
+              <option value="2">2U</option>
+              <option value="3">3U</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Power draw (W)</span>
+            <input id="cd-watts" type="number" min="0" step="1" placeholder="0" />
+          </label>
+        </div>
+        <fieldset class="ports-fieldset">
+          <legend>Ports</legend>
+          <div id="cd-ports"></div>
+          <button type="button" id="cd-add-port" class="btn">+ Add ports</button>
+        </fieldset>
+        <div class="modal-actions">
+          <button type="button" id="cd-cancel" class="btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Device</button>
+        </div>
+      </form>
+    </dialog>
 
     <div id="global-tooltip" class="port-tooltip" role="tooltip" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
