@@ -174,6 +174,26 @@ svg path.cable-path:hover {
   right: 0;
   border-left: 1px solid #475569;
 }
+/* Rails read as a 1U grid by default: the whole-U rail spans its half-row plus
+   the .5 row below (2×22px + 4px gap), and the .5 rows draw no rail — so the
+   side columns look continuous per-U, not seamed every half-U. The fine grid
+   (.show-half) splits them back into half-rows, mirroring the .slot-bay rules. */
+.slot:not(.slot--half)::before,
+.slot:not(.slot--half)::after {
+  height: calc(200% + 4px);
+}
+.slot--half::before,
+.slot--half::after {
+  display: none;
+}
+.slots-container.show-half .slot:not(.slot--half)::before,
+.slots-container.show-half .slot:not(.slot--half)::after {
+  height: 100%;
+}
+.slots-container.show-half .slot--half::before,
+.slots-container.show-half .slot--half::after {
+  display: block;
+}
 
 .rail-screw-hole-l,
 .rail-screw-hole-r {

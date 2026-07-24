@@ -61,6 +61,14 @@ h1 {
   cursor: not-allowed;
 }
 
+/* Sticky toggle buttons (e.g. the ½U grid) when active. */
+.btn-active,
+.btn-active:hover:not(:disabled) {
+  background-color: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: #fff;
+}
+
 .btn-primary {
   background-color: var(--accent-blue);
   border-color: var(--accent-blue);

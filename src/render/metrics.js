@@ -1,4 +1,4 @@
-import { DEVICE_TYPES } from '../data/devices.js';
+import { DEVICE_TYPES, subOf } from '../data/devices.js';
 
 /**
  * Compute power, PoE, and thermal figures for a set of placed devices.
@@ -12,7 +12,7 @@ export function computeMetrics(rack, maxU) {
   let poeDemand = 0;
   let heat = 0;
 
-  for (const { type } of rack) {
+  for (const { type, fills } of rack) {
     const spec = DEVICE_TYPES[type];
     if (!spec) continue;
     usedU += spec.uHeight ?? 1;
@@ -20,6 +20,14 @@ export function computeMetrics(rack, maxU) {
     poeSupply += spec.poeBudget ?? 0;
     if (spec.poeIn) poeDemand += spec.watts ?? 0;
     heat += spec.heatWeight ?? 0;
+
+    // Fitted sub-components (drives, compute modules) add their own draw + heat.
+    for (const key of fills ?? []) {
+      const sub = key && subOf(key);
+      if (!sub) continue;
+      totalWatts += sub.watts ?? 0;
+      heat += sub.heatWeight ?? 0;
+    }
   }
 
   const poeLoad = poeSupply > 0 ? Math.min(100, Math.round((poeDemand / poeSupply) * 100)) : 0;

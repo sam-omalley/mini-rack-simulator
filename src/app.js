@@ -1,7 +1,7 @@
-import { DEVICE_TYPES, PORT_SPECS, CATEGORIES, uHeightOf } from './data/devices.js';
+import { DEVICE_TYPES, PORT_SPECS, CATEGORIES, uHeightOf, subsFor } from './data/devices.js';
 import { CustomDevices } from './features/customDevices.js';
 import { TEMPLATES } from './data/templates.js';
-import { createDevice } from './render/deviceFactory.js';
+import { createDevice, applyBayFill } from './render/deviceFactory.js';
 import { computeMetrics } from './render/metrics.js';
 import { CableManager } from './render/cableManager.js';
 import { classifyConnection, rackByU } from './render/cableClassify.js';
@@ -24,6 +24,13 @@ const MAX_HISTORY = 100;
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 1.4;
 
+// Momentary fine-placement modifier read from an event. Hold-to-reveal was
+// dropped: browsers (Firefox especially) deliver Alt/Shift keydown/keyup
+// unreliably, so it stuck or lagged. The fine grid is now an explicit toggle
+// (see `_fineMode`); these modifiers still give a per-event snap override,
+// which is read at event time and so is always reliable.
+const fineMode = (e) => Boolean(e && (e.shiftKey || e.altKey));
+
 export const App = {
   connections: [],
   maxU: 6,
@@ -31,6 +38,7 @@ export const App = {
   draggedEl: null,
   fromSidebar: false,
   placingType: null,
+  _fineMode: false, // sticky ½U grid toggle (button / "G")
   history: [],
   historyIndex: -1,
   redrawPending: false,
@@ -352,6 +360,71 @@ export const App = {
     this.editingCable = null;
   },
 
+  /* ---------------------------------------------------- Carrier bay menu */
+
+  /** Open the fill menu for a carrier bay. `e` is the click event, or null for
+   *  keyboard activation (positions off the bay itself). */
+  openBayMenu(bay, e) {
+    const device = bay.closest('.device.placed');
+    const spec = DEVICE_TYPES[device?.dataset.type];
+    if (!spec?.slots) return;
+    this.editingBay = bay;
+    const menu = this.ensureBayMenu();
+    const current = bay.dataset.fill || '';
+    const opts = subsFor(spec.slots.accepts)
+      .map(
+        (o) =>
+          `<button type="button" class="bay-opt${o.key === current ? ' bay-opt--active' : ''}" data-fill="${o.key}">${escapeHtml(o.name)}</button>`
+      )
+      .join('');
+    menu.innerHTML =
+      `<div class="bay-menu-title">Fit component</div>${opts}` +
+      `<button type="button" class="bay-opt bay-opt--empty${current ? '' : ' bay-opt--active'}" data-fill="">Leave empty</button>`;
+
+    menu.hidden = false;
+    const rect = bay.getBoundingClientRect();
+    const px = e ? e.clientX : rect.left;
+    const py = e ? e.clientY + 8 : rect.bottom + 6;
+    const x = Math.min(px, window.innerWidth - menu.offsetWidth - 12);
+    const y = Math.min(py, window.innerHeight - menu.offsetHeight - 12);
+    menu.style.left = `${Math.max(12, x)}px`;
+    menu.style.top = `${Math.max(12, y)}px`;
+    menu.querySelector('.bay-opt--active')?.focus();
+  },
+
+  ensureBayMenu() {
+    if (this.$bayMenu) return this.$bayMenu;
+    const menu = document.createElement('div');
+    menu.className = 'bay-menu';
+    menu.id = 'bay-menu';
+    menu.hidden = true;
+    menu.addEventListener('click', (e) => {
+      const opt = e.target.closest('[data-fill]');
+      if (!opt || !this.editingBay) return;
+      applyBayFill(this.editingBay, opt.dataset.fill || null);
+      const focusTarget = this.editingBay;
+      this.closeBayMenu();
+      focusTarget.focus();
+      this.commit();
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!menu.hidden && !e.target.closest('#bay-menu') && !e.target.closest('[data-action="fill-bay"]')) {
+        this.closeBayMenu();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !menu.hidden) this.closeBayMenu();
+    });
+    document.body.appendChild(menu);
+    this.$bayMenu = menu;
+    return menu;
+  },
+
+  closeBayMenu() {
+    if (this.$bayMenu) this.$bayMenu.hidden = true;
+    this.editingBay = null;
+  },
+
   /* -------------------------------------------------- Custom device modal */
 
   setupDeviceModal() {
@@ -450,7 +523,12 @@ export const App = {
       row.className = `slot-row${whole ? '' : ' slot-row--half'}`;
       row.innerHTML = `
         <div class="slot${whole ? '' : ' slot--half'}" data-u="${u}" role="listitem" aria-label="Rack unit ${u}">
-          ${whole ? '<span class="rail-screw-hole-l h1"></span><span class="rail-screw-hole-r h1"></span>' : ''}
+          ${
+            whole
+              ? '<span class="rail-screw-hole-l h1"></span><span class="rail-screw-hole-l h2"></span><span class="rail-screw-hole-l h3"></span>' +
+                '<span class="rail-screw-hole-r h1"></span><span class="rail-screw-hole-r h2"></span><span class="rail-screw-hole-r h3"></span>'
+              : ''
+          }
           <div class="slot-bay">${whole ? `U${u}` : ''}</div>
         </div>`;
       this.$slots.appendChild(row);
@@ -473,7 +551,7 @@ export const App = {
       if (!slot) return;
       e.preventDefault();
       slot.classList.remove('drag-over');
-      this.handleDrop(slot, e.altKey);
+      this.handleDrop(slot, this.fine(e));
     });
 
     // Tap-to-place, device select, duplicate, delete.
@@ -489,9 +567,15 @@ export const App = {
         this.duplicateSelected();
         return;
       }
+      const bay = e.target.closest('[data-action="fill-bay"]');
+      if (bay) {
+        e.stopPropagation();
+        this.openBayMenu(bay, e);
+        return;
+      }
       const slot = e.target.closest('.slot');
       if (this.placingType && slot && !e.target.closest('.device')) {
-        this.placeType(this.placingType, Number(slot.dataset.u), e.altKey);
+        this.placeType(this.placingType, Number(slot.dataset.u), this.fine(e));
         return;
       }
       const device = e.target.closest('.device.placed');
@@ -565,13 +649,13 @@ export const App = {
     this.$svg.classList.toggle('focusing', any);
   },
 
-  handleDrop(slot, alt = false) {
+  handleDrop(slot, fine = false) {
     const dropU = Number(slot.dataset.u);
     if (this.fromSidebar && this.draggedEl) {
-      this.placeType(this.draggedEl.dataset.deviceType, dropU, alt);
+      this.placeType(this.draggedEl.dataset.deviceType, dropU, fine);
     } else if (this.draggedEl?.classList.contains('placed')) {
       const type = this.draggedEl.dataset.type;
-      const u = snapAnchor(dropU, uHeightOf(type), alt);
+      const u = snapAnchor(dropU, uHeightOf(type), fine);
       if (!this.canPlace(u, uHeightOf(type), this.draggedEl)) {
         Toast.show(`Can't move here — needs ${uHeightOf(type)}U of free space.`);
         return;
@@ -582,9 +666,9 @@ export const App = {
     }
   },
 
-  placeType(type, dropU, alt = false) {
+  placeType(type, dropU, fine = false) {
     const uHeight = uHeightOf(type);
-    const u = snapAnchor(dropU, uHeight, alt);
+    const u = snapAnchor(dropU, uHeight, fine);
     if (!this.canPlace(u, uHeight)) {
       Toast.show(`Can't place — needs ${uHeight}U of free space here.`);
       return;
@@ -652,10 +736,10 @@ export const App = {
     });
   },
 
-  moveSelected(direction, alt = false) {
+  moveSelected(direction, fine = false) {
     const selected = this.selected();
     if (selected.length === 0) return;
-    const delta = direction * moveStep(alt);
+    const delta = direction * moveStep(fine);
     // Every device must fit at its shifted position, ignoring the moving set.
     const ok = selected.every((d) => this.canPlace(Number(d.parentElement.dataset.u) + delta, uHeightOf(d.dataset.type), selected));
     if (!ok) return;
@@ -685,8 +769,10 @@ export const App = {
       if (u == null) return;
       const dev = createDevice(type, u);
       const labels = [...d.querySelectorAll('.port-label')].map((i) => i.value);
+      const fills = [...d.querySelectorAll('.carrier-bay')].map((b) => b.dataset.fill || null);
       this.slot(u).appendChild(dev);
       dev.querySelectorAll('.port-label').forEach((inp, idx) => (inp.value = labels[idx] ?? ''));
+      dev.querySelectorAll('.carrier-bay').forEach((bay, idx) => applyBayFill(bay, fills[idx] || null));
       this.updateOccupiedSlots();
       placed += 1;
     });
@@ -720,11 +806,16 @@ export const App = {
   getState() {
     // Read devices straight from the DOM so half-U anchors are captured too.
     const rack = [...this.$slots.querySelectorAll('.slot > .device.placed')]
-      .map((dev) => ({
-        u: Number(dev.parentElement.dataset.u),
-        type: dev.dataset.type,
-        labels: [...dev.querySelectorAll('.port-label')].map((i) => i.value),
-      }))
+      .map((dev) => {
+        const item = {
+          u: Number(dev.parentElement.dataset.u),
+          type: dev.dataset.type,
+          labels: [...dev.querySelectorAll('.port-label')].map((i) => i.value),
+        };
+        const bays = dev.querySelectorAll('.carrier-bay');
+        if (bays.length) item.fills = [...bays].map((b) => b.dataset.fill || null);
+        return item;
+      })
       .sort((a, b) => b.u - a.u);
     return {
       maxU: this.maxU,
@@ -751,6 +842,9 @@ export const App = {
       dev.querySelectorAll('.port-label').forEach((inp, idx) => {
         inp.value = item.labels?.[idx] ?? '';
       });
+      if (item.fills) {
+        dev.querySelectorAll('.carrier-bay').forEach((bay, idx) => applyBayFill(bay, item.fills[idx] || null));
+      }
     });
 
     this.connections = structuredClone(state.connections);
@@ -816,7 +910,10 @@ export const App = {
       const bay = slot.querySelector('.slot-bay');
       if (bay && !slot.querySelector('.device')) {
         bay.textContent = Number.isInteger(Number(slot.dataset.u)) ? `U${slot.dataset.u}` : '';
-        bay.style.display = 'flex';
+        // Clear the inline override so the stylesheet governs visibility: whole-U
+        // bays show, half-U bays stay hidden unless the fine grid (.show-half) is
+        // active. Forcing 'flex' here would beat that CSS and reveal the .5 rows.
+        bay.style.display = '';
       }
     });
 
@@ -1148,29 +1245,34 @@ export const App = {
 
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
 
-    // Reveal the fine (0.5U) grid while Alt is held.
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Alt') {
-        this._altHeld = true;
-        this.refreshHalfGrid();
-      }
-    });
-    const clearAlt = () => {
-      this._altHeld = false;
-      this.refreshHalfGrid();
-    };
-    document.addEventListener('keyup', (e) => e.key === 'Alt' && clearAlt());
-    window.addEventListener('blur', clearAlt);
+    // The fine (0.5U) grid is an explicit toggle — reliable in every browser,
+    // unlike hold-to-reveal which browsers deliver too unreliably to trust.
+    document.getElementById('btn-fine-grid').addEventListener('click', () => this.toggleFineGrid());
+  },
+
+  /** Whether a placement/drag/move should snap to the 0.5U grid: the sticky
+   *  toggle, or a per-event Shift/Alt override (read at event time). */
+  fine(e) {
+    return this._fineMode || fineMode(e);
+  },
+
+  /** Toggle the sticky ½U grid (button / "G"). */
+  toggleFineGrid(on = !this._fineMode) {
+    this._fineMode = on;
+    const btn = document.getElementById('btn-fine-grid');
+    btn.classList.toggle('btn-active', on);
+    btn.setAttribute('aria-pressed', String(on));
+    this.refreshHalfGrid();
   },
 
   /**
-   * Show the fine (0.5U) grid when it's relevant: Alt held, or a sub-1U device
-   * is being dragged or is armed for tap-to-place. Otherwise the rack reads as
-   * a clean 1U grid.
+   * Show the fine (0.5U) grid when it's relevant: the toggle is on, or a sub-1U
+   * device is being dragged or is armed for tap-to-place. Otherwise the rack
+   * reads as a clean 1U grid.
    */
   refreshHalfGrid() {
     const placingFractional = this.placingType && !Number.isInteger(uHeightOf(this.placingType));
-    const show = this._altHeld || this._fractionalDrag || placingFractional;
+    const show = this._fineMode || this._fractionalDrag || placingFractional;
     this.$slots.classList.toggle('show-half', Boolean(show));
   },
 
@@ -1207,6 +1309,18 @@ export const App = {
     }
     if (editing) return;
 
+    if (e.key.toLowerCase() === 'g') {
+      e.preventDefault();
+      this.toggleFineGrid();
+      return;
+    }
+
+    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.dataset?.action === 'fill-bay') {
+      e.preventDefault();
+      this.openBayMenu(document.activeElement, null);
+      return;
+    }
+
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (this.selected().length) {
         e.preventDefault();
@@ -1214,10 +1328,10 @@ export const App = {
       }
     } else if (e.key === 'ArrowUp' && this.selected().length) {
       e.preventDefault();
-      this.moveSelected(1, e.altKey);
+      this.moveSelected(1, this.fine(e));
     } else if (e.key === 'ArrowDown' && this.selected().length) {
       e.preventDefault();
-      this.moveSelected(-1, e.altKey);
+      this.moveSelected(-1, this.fine(e));
     } else if (e.key === 'Escape') {
       if (this.placingType) {
         this.placingType = null;
