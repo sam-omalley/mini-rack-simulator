@@ -9,6 +9,7 @@ import { computeBom, bomToCsv } from './features/bom.js';
 import { computeSchedule, scheduleToCsv } from './features/cableSchedule.js';
 import { Pricing, priceFn } from './features/pricing.js';
 import { validateRack } from './features/validate.js';
+import { computePoe } from './features/poe.js';
 import { getPortCenterInSVG, cablePath } from './utils/geometry.js';
 import { Tooltip } from './ui/tooltip.js';
 import { Toast } from './ui/toast.js';
@@ -877,14 +878,27 @@ export const App = {
   },
 
   updatePowerSummary() {
-    const m = computeMetrics(this.getState().rack, this.maxU);
+    const state = this.getState();
+    const m = computeMetrics(state.rack, this.maxU);
+    const poe = computePoe(state);
     const thermalLabel = { cool: '🟢 Cool', warm: '🟡 Warm', high: '🔴 High' }[m.thermalLevel];
+
+    const perSwitch = poe.sources
+      .map(
+        (s) =>
+          `<div class="metric-row metric-sub"><span>↳ ${escapeHtml(s.name)} (U${s.u})</span><strong style="color:${
+            s.over ? 'var(--accent-red)' : 'var(--text-color)'
+          }">${s.load} / ${s.budget} W · ${s.pct}%</strong></div>`
+      )
+      .join('');
+
     this.$power.innerHTML = `
       ${metricRow('Devices', m.deviceCount)}
       ${metricRow('Units used', `${m.usedU} / ${m.maxU} U`)}
       ${metricRow('Est. power draw', `${m.totalWatts} W`)}
-      ${metricRow('PoE available', `${m.poeSupply} W`)}
-      ${metricRow('PoE in use (approx)', `${m.poeDemand} W · ${m.poeLoad}%`)}
+      ${metricRow('PoE supply', `${poe.totalBudget} W`)}
+      ${metricRow('PoE load', `${poe.totalLoad} W`)}
+      ${perSwitch}
       ${metricRow('Thermal load', thermalLabel)}
     `;
   },
