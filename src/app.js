@@ -46,6 +46,7 @@ export const App = {
     this.renderCustomSection();
     this.setupDeviceModal();
     this.setupCableEditor();
+    this.setupLayouts();
     this.bindGlobalControls();
     this.bindDelegatedEvents();
     CableManager.init(this);
@@ -167,6 +168,57 @@ export const App = {
       this.updatePlacementUi();
     }
     this.renderCustomSection();
+  },
+
+  /* --------------------------------------------------------- Saved layouts */
+
+  setupLayouts() {
+    this.$layoutSelect = document.getElementById('layout-select');
+    this.refreshLayoutSelect();
+
+    document.getElementById('btn-save-layout').addEventListener('click', () => {
+      const input = document.getElementById('layout-name');
+      const name = input.value.trim();
+      if (!name) {
+        Toast.show('Enter a name to save this layout.');
+        input.focus();
+        return;
+      }
+      const exists = Persistence.listLayouts().includes(name);
+      if (exists && !confirm(`Overwrite the saved layout "${name}"?`)) return;
+      Persistence.saveLayout(name, this.getState());
+      input.value = '';
+      this.refreshLayoutSelect(name);
+      Toast.show(`Saved layout "${name}".`);
+    });
+
+    document.getElementById('btn-load-layout').addEventListener('click', () => {
+      const name = this.$layoutSelect.value;
+      if (!name) return;
+      const state = Persistence.loadLayout(name);
+      if (!state) {
+        Toast.show('That layout could not be loaded.');
+        return;
+      }
+      this.loadState(state, { record: true });
+      Toast.show(`Loaded layout "${name}".`);
+    });
+
+    document.getElementById('btn-delete-layout').addEventListener('click', () => {
+      const name = this.$layoutSelect.value;
+      if (!name) return;
+      if (!confirm(`Delete the saved layout "${name}"?`)) return;
+      Persistence.deleteLayout(name);
+      this.refreshLayoutSelect();
+      Toast.show(`Deleted layout "${name}".`);
+    });
+  },
+
+  refreshLayoutSelect(selected = '') {
+    const names = Persistence.listLayouts();
+    this.$layoutSelect.innerHTML =
+      '<option value="">— saved layouts —</option>' +
+      names.map((n) => `<option value="${escapeHtml(n)}"${n === selected ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
   },
 
   /* ------------------------------------------------------- Cable editor */

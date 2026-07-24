@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'rack_sim_state_v3';
+const LAYOUTS_KEY = 'rack_sim_layouts_v1';
 
 /** Serialise/restore rack state to localStorage, a share URL, or a JSON file. */
 export const Persistence = {
@@ -37,6 +38,45 @@ export const Persistence = {
 
   buildShareUrl(state) {
     return `${location.origin}${location.pathname}#s=${encodeState(JSON.stringify(state))}`;
+  },
+
+  // --- Named layouts (separate from the autosaved working layout) ---
+
+  listLayouts() {
+    return Object.keys(this._layouts()).sort((a, b) => a.localeCompare(b));
+  },
+
+  saveLayout(name, state) {
+    const all = this._layouts();
+    all[name] = state;
+    this._writeLayouts(all);
+  },
+
+  loadLayout(name) {
+    const state = this._layouts()[name];
+    return state ? normalize(state) : null;
+  },
+
+  deleteLayout(name) {
+    const all = this._layouts();
+    delete all[name];
+    this._writeLayouts(all);
+  },
+
+  _layouts() {
+    try {
+      return JSON.parse(localStorage.getItem(LAYOUTS_KEY)) || {};
+    } catch {
+      return {};
+    }
+  },
+
+  _writeLayouts(all) {
+    try {
+      localStorage.setItem(LAYOUTS_KEY, JSON.stringify(all));
+    } catch {
+      /* non-fatal */
+    }
   },
 
   toJSON(state) {
