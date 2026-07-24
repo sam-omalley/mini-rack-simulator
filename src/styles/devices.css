@@ -1,0 +1,566 @@
+.device {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  color: #475569;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 3px;
+  user-select: none;
+}
+body.dark-mode .device:not(.placed) {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+.device.placed {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 320px !important;
+  height: 100%;
+  z-index: 10;
+  border: none;
+  animation: snapEffect 0.15s ease-out;
+}
+.device.u-2.placed {
+  height: 100px !important;
+  z-index: 20;
+}
+.device.u-3.placed {
+  height: 152px !important;
+  z-index: 20;
+}
+.device.placed:focus-within,
+.device.placed.selected {
+  box-shadow: inset 0 0 0 2px var(--accent-blue), var(--focus-ring);
+}
+.device.dragging {
+  opacity: 0.4;
+}
+
+@keyframes snapEffect {
+  from {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Rack ears + screws */
+.ear-l,
+.ear-r {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 20px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to bottom, #f1f5f9, #cbd5e1 50%, #94a3b8);
+}
+.ear-l {
+  border-right: 1px solid #cbd5e1;
+  border-radius: 2px 0 0 2px;
+}
+.ear-r {
+  border-left: 1px solid #cbd5e1;
+  border-radius: 0 2px 2px 0;
+}
+.screw-hole {
+  position: relative;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #e2e8f0 10%, #64748b 70%, #1e293b 100%);
+  border: 1px solid #334155;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.screw-hole::before,
+.screw-hole::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: #0f172a;
+}
+.screw-hole::before {
+  width: 7px;
+  height: 1.5px;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.screw-hole::after {
+  width: 1.5px;
+  height: 7px;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.device-body {
+  position: relative;
+  z-index: 2;
+  flex-grow: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  overflow: hidden;
+  background: #fff;
+  border-left: 1px solid #cbd5e1;
+  border-right: 1px solid #cbd5e1;
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.device[data-type='blank'] .device-body {
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+.device[data-type='brush-panel'] .device-body {
+  min-height: 28px;
+  background: repeating-linear-gradient(90deg, #111827, #111827 6px, #1e293b 6px, #1e293b 9px);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8);
+  border-top: 1px solid #334155;
+  border-bottom: 1px solid #334155;
+}
+
+.bracket-3d {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(0deg, #f8fafc, #f8fafc 1.5px, #e2e8f0 1.5px, #e2e8f0 3px);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.08);
+  border-left: 1px solid #cbd5e1;
+  border-right: 1px solid #cbd5e1;
+}
+
+.unifi-chassis {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  background: #fff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 5px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.unifi-screen {
+  position: relative;
+  width: 22px;
+  height: 15px;
+  margin-right: 10px;
+  background: #090d16;
+  border: 1px solid #475569;
+  border-radius: 2px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.unifi-screen::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  box-shadow: 0 0 3px var(--accent-blue);
+  animation: activeBlink 1.8s infinite alternate;
+}
+
+/* Ports ------------------------------------------------------------------ */
+.ports-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.port-gap {
+  width: 6px;
+}
+
+.switch-port-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5px;
+}
+.patch-port-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.port-rj45 {
+  position: relative;
+  width: 11px;
+  height: 10px;
+  background: #11141d;
+  border: 1.5px solid #94a3b8;
+  border-top-color: #64748b;
+  border-radius: 1px;
+  cursor: pointer;
+  touch-action: none;
+  transition: all 0.15s ease;
+}
+.port-rj45::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  z-index: 1;
+}
+.port-rj45::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 2px;
+  right: 2px;
+  height: 2px;
+  background: #1e293b;
+}
+.port-rj45:hover {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 8px rgba(0, 85, 255, 0.6);
+  transform: scale(1.2);
+  z-index: 10;
+}
+.port-rj45.port-selected {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 10px var(--accent-blue), inset 0 0 3px var(--accent-blue) !important;
+  transform: scale(1.2);
+  z-index: 10;
+  animation: portPulse 1s infinite alternate;
+}
+.port-poe {
+  border-color: var(--accent-blue) !important;
+}
+.port-10g {
+  border-color: var(--accent-orange) !important;
+}
+.port-sfp {
+  border-color: var(--accent-sfp) !important;
+}
+.port-wan {
+  border-color: #94a3b8 !important;
+}
+
+@keyframes portPulse {
+  from {
+    transform: scale(1.1);
+    box-shadow: 0 0 4px var(--accent-blue);
+  }
+  to {
+    transform: scale(1.3);
+    box-shadow: 0 0 12px var(--accent-blue);
+  }
+}
+
+.switch-grid-16 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grid-row {
+  display: flex;
+  gap: 2.5px;
+}
+.grid-row .port-rj45 {
+  width: 10px;
+  height: 9px;
+  border-width: 1px;
+}
+
+.led {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+.led.active-green {
+  background-color: var(--accent-green) !important;
+  box-shadow: 0 0 5px var(--accent-green) !important;
+}
+.led.active-blue {
+  background-color: var(--accent-blue) !important;
+  box-shadow: 0 0 5px var(--accent-blue) !important;
+}
+.led.active-orange {
+  background-color: var(--accent-orange) !important;
+  box-shadow: 0 0 5px var(--accent-orange) !important;
+}
+.led.active-cyan {
+  background-color: var(--accent-sfp) !important;
+  box-shadow: 0 0 5px var(--accent-sfp) !important;
+}
+.blink {
+  animation: activeBlink 0.9s infinite alternate;
+}
+.blink-slow {
+  animation: activeBlink 1.6s infinite alternate;
+}
+@keyframes activeBlink {
+  from {
+    opacity: 0.35;
+    filter: brightness(0.7);
+  }
+  to {
+    opacity: 1;
+    filter: brightness(1.3);
+  }
+}
+
+.port-label {
+  height: 10px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 1px;
+  background-color: #fff;
+  color: #1e293b;
+  font-size: 7px;
+  text-align: center;
+}
+.device[data-type='patch-8'] .port-label {
+  width: 22px;
+}
+.device[data-type='patch-12'] .port-label {
+  width: 14px;
+  font-size: 6.5px;
+}
+.device[data-type='patch-12'] .ports-group,
+.device[data-type='patch-12'] .patch-port-unit {
+  gap: 2px;
+}
+.port-label:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  background-color: #f8fafc;
+  box-shadow: 0 0 3px rgba(0, 85, 255, 0.35);
+}
+
+.delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 1000;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-red);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+.device.placed:hover .delete-btn,
+.device.placed:focus-within .delete-btn {
+  display: flex;
+}
+
+/* Dell OptiPlex faceplate */
+.dell-chassis {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: #18181b;
+  border: 1.5px solid #3f3f46;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.dell-faceplate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+}
+.dell-left-panel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  padding-right: 6px;
+  border-right: 1px solid #3f3f46;
+}
+.dell-power-btn {
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid #71717a;
+  background: radial-gradient(circle, #3f3f46 40%, #18181b 100%);
+}
+.dell-power-btn .power-icon {
+  width: 4px;
+  height: 4px;
+  border-top: 1.5px solid #38bdf8;
+  border-radius: 50%;
+}
+.dell-jacks {
+  display: flex;
+  gap: 2px;
+}
+.dell-jack {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #090d16;
+  border: 1px solid #52525b;
+}
+.dell-usb3 {
+  width: 10px;
+  height: 5px;
+  background: #0284c7;
+  border: 1px solid #38bdf8;
+  border-radius: 1px;
+}
+.dell-usbc {
+  width: 8px;
+  height: 4px;
+  background: #090d16;
+  border: 1px solid #71717a;
+  border-radius: 2px;
+}
+.dell-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 26px;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  font-size: 4.5px;
+  font-weight: bold;
+  line-height: 1;
+  letter-spacing: -0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  color: #a1a1aa;
+}
+.dell-right-mesh {
+  position: relative;
+  flex-grow: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  background: repeating-linear-gradient(-45deg, #18181b, #18181b 2px, #090d16 2px, #090d16 4px);
+}
+.dell-logo-circle {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  background: rgba(24, 24, 27, 0.85);
+  color: #f8fafc;
+  font: bold 6px Arial, sans-serif;
+  letter-spacing: -0.5px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+/* DeskPi faceplates */
+.deskpi-chassis {
+  width: 100%;
+  height: 90%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 2px 6px;
+  background: #0f172a;
+  border: 1.5px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+}
+.deskpi-pi-bay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 3px;
+}
+.pi-badge {
+  font-size: 6px;
+  font-weight: bold;
+  letter-spacing: -0.3px;
+  color: #ec4899;
+}
+.deskpi-screen-container {
+  position: relative;
+  width: 100%;
+  height: 88%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  box-shadow: inset 0 0 8px rgba(0, 255, 255, 0.15);
+}
+.deskpi-hud-display {
+  width: 96%;
+  height: 82%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 4px;
+  background: radial-gradient(circle, #0f172a, #020617);
+  border: 1px solid #1e293b;
+  border-radius: 3px;
+}
+.hud-gauge {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid #06b6d4;
+  font-size: 5px;
+  font-weight: bold;
+  color: #38bdf8;
+  box-shadow: 0 0 5px rgba(6, 182, 212, 0.4);
+}
+.hud-gauge.green {
+  border-color: #10b981;
+  color: #34d399;
+  box-shadow: 0 0 5px rgba(16, 185, 129, 0.4);
+}
+.hud-gauge.orange {
+  border-color: #f97316;
+  color: #fb923c;
+  box-shadow: 0 0 5px rgba(249, 115, 22, 0.4);
+}
+.hud-gauge.purple {
+  border-color: #a855f7;
+  color: #c084fc;
+  box-shadow: 0 0 5px rgba(168, 85, 247, 0.4);
+}

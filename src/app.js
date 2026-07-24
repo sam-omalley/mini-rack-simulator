@@ -1,0 +1,716 @@
+import { DEVICE_TYPES, PORT_MEDIA_TYPES, CATEGORIES, uHeightOf } from './data/devices.js';
+import { createDevice } from './render/deviceFactory.js';
+import { computeMetrics } from './render/metrics.js';
+import { CableManager } from './render/cableManager.js';
+import { Persistence } from './features/persistence.js';
+import { getPortCenterInSVG, cablePath } from './utils/geometry.js';
+import { Tooltip } from './ui/tooltip.js';
+import { Toast } from './ui/toast.js';
+import { Theme } from './ui/theme.js';
+import { exportPNG } from './features/exportPng.js';
+
+const MAX_HISTORY = 100;
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 1.4;
+
+export const App = {
+  connections: [],
+  maxU: 6,
+  zoom: 1,
+  draggedEl: null,
+  fromSidebar: false,
+  placingType: null,
+  history: [],
+  historyIndex: -1,
+  redrawPending: false,
+  labelTimer: null,
+
+  init() {
+    Tooltip.init();
+    Toast.init();
+    Theme.init();
+
+    this.cacheDom();
+    this.renderSidebar();
+    this.bindGlobalControls();
+    this.bindDelegatedEvents();
+    CableManager.init(this);
+
+    // Priority: shared URL > saved session > empty rack.
+    const initial = Persistence.loadFromUrl() || Persistence.load() || { maxU: 6, rack: [], connections: [] };
+    if (Persistence.loadFromUrl()) Toast.show('Loaded a shared rack layout.');
+    this.loadState(initial, { record: true, resetHistory: true });
+  },
+
+  cacheDom() {
+    this.$slots = document.getElementById('slots-container');
+    this.$svg = document.getElementById('cable-svg');
+    this.$wrapper = document.getElementById('rack-wrapper');
+    this.$report = document.getElementById('report-list');
+    this.$power = document.getElementById('power-summary');
+    this.$cableBreakdown = document.getElementById('cable-breakdown');
+    this.$hint = document.getElementById('placement-hint');
+  },
+
+  /* ---------------------------------------------------------------- Sidebar */
+
+  renderSidebar() {
+    const container = document.getElementById('sidebar-categories');
+    container.innerHTML = '';
+
+    CATEGORIES.forEach((cat) => {
+      const block = document.createElement('div');
+      block.className = 'sidebar-category';
+      block.innerHTML = `<div class="category-title">${cat.title}</div>`;
+
+      cat.types.forEach((type) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'device-card';
+        card.draggable = true;
+        card.dataset.deviceType = type;
+        card.setAttribute('aria-label', `Add ${DEVICE_TYPES[type].name}`);
+        card.innerHTML = `<span class="device-card-title">${DEVICE_TYPES[type].name}</span>`;
+        card.appendChild(createDevice(type));
+
+        card.addEventListener('dragstart', (e) => {
+          this.draggedEl = card;
+          this.fromSidebar = true;
+          e.dataTransfer.effectAllowed = 'copy';
+          card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('click', () => this.togglePlacement(type));
+
+        block.appendChild(card);
+      });
+      container.appendChild(block);
+    });
+
+    document.getElementById('search-sidebar').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('.device-card').forEach((card) => {
+        const name = DEVICE_TYPES[card.dataset.deviceType].name.toLowerCase();
+        card.hidden = !name.includes(q);
+      });
+      document.querySelectorAll('.sidebar-category').forEach((cat) => {
+        const anyVisible = [...cat.querySelectorAll('.device-card')].some((c) => !c.hidden);
+        cat.hidden = !anyVisible;
+      });
+    });
+
+    document.getElementById('btn-sidebar-toggle').addEventListener('click', (e) => {
+      const body = document.getElementById('sidebar-body');
+      const collapsed = body.toggleAttribute('hidden');
+      e.currentTarget.setAttribute('aria-expanded', String(!collapsed));
+      e.currentTarget.textContent = collapsed ? '▸' : '▾';
+    });
+  },
+
+  /* --------------------------------------------------- Tap-to-place (a11y) */
+
+  togglePlacement(type) {
+    this.placingType = this.placingType === type ? null : type;
+    this.updatePlacementUi();
+  },
+
+  updatePlacementUi() {
+    const active = this.placingType;
+    document.querySelectorAll('.device-card').forEach((c) => {
+      c.classList.toggle('placing', c.dataset.deviceType === active);
+    });
+    this.$slots.classList.toggle('picking', Boolean(active));
+    if (active) {
+      this.$hint.hidden = false;
+      this.$hint.textContent = `Placing ${DEVICE_TYPES[active].name} — tap a free slot (Esc to cancel).`;
+    } else {
+      this.$hint.hidden = true;
+    }
+  },
+
+  /* ------------------------------------------------------------ Rack slots */
+
+  renderSlots() {
+    this.$slots.innerHTML = '';
+    for (let u = this.maxU; u >= 1; u--) {
+      const row = document.createElement('div');
+      row.className = 'slot-row';
+      row.innerHTML = `
+        <div class="slot" data-u="${u}" role="listitem" aria-label="Rack unit ${u}">
+          <span class="rail-screw-hole-l h1"></span><span class="rail-screw-hole-l h2"></span><span class="rail-screw-hole-l h3"></span>
+          <span class="rail-screw-hole-r h1"></span><span class="rail-screw-hole-r h2"></span><span class="rail-screw-hole-r h3"></span>
+          <div class="slot-bay">U${u}</div>
+        </div>`;
+      this.$slots.appendChild(row);
+    }
+  },
+
+  bindDelegatedEvents() {
+    // Drag & drop onto slots.
+    this.$slots.addEventListener('dragover', (e) => {
+      const slot = e.target.closest('.slot');
+      if (!slot) return;
+      e.preventDefault();
+      slot.classList.add('drag-over');
+    });
+    this.$slots.addEventListener('dragleave', (e) => {
+      e.target.closest('.slot')?.classList.remove('drag-over');
+    });
+    this.$slots.addEventListener('drop', (e) => {
+      const slot = e.target.closest('.slot');
+      if (!slot) return;
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      this.handleDrop(slot);
+    });
+
+    // Tap-to-place, device select, delete.
+    this.$slots.addEventListener('click', (e) => {
+      const del = e.target.closest('[data-action="delete"]');
+      if (del) {
+        this.removeDevice(del.closest('.device'));
+        return;
+      }
+      const slot = e.target.closest('.slot');
+      if (this.placingType && slot && !e.target.closest('.device')) {
+        this.placeType(this.placingType, parseInt(slot.dataset.u, 10));
+        return;
+      }
+      const device = e.target.closest('.device.placed');
+      if (device && !e.target.closest('.port-rj45') && !e.target.closest('.port-label')) {
+        this.selectDevice(device);
+      }
+    });
+
+    // Placed-device drag to move.
+    this.$slots.addEventListener('dragstart', (e) => {
+      const device = e.target.closest('.device.placed');
+      if (!device) return;
+      this.draggedEl = device;
+      this.fromSidebar = false;
+      e.dataTransfer.effectAllowed = 'move';
+      device.classList.add('dragging');
+    });
+    this.$slots.addEventListener('dragend', (e) => {
+      e.target.closest('.device.placed')?.classList.remove('dragging');
+    });
+
+    // Patch-panel label edits (debounced into history).
+    this.$slots.addEventListener('input', (e) => {
+      if (!e.target.classList.contains('port-label')) return;
+      this.refresh();
+      clearTimeout(this.labelTimer);
+      this.labelTimer = setTimeout(() => this.commit(), 500);
+    });
+
+    // Tooltips via delegation (pointer + keyboard).
+    this.$slots.addEventListener('pointerover', (e) => this.maybeTooltip(e, true));
+    this.$slots.addEventListener('pointerout', (e) => {
+      if (e.target.closest('.port-rj45')) Tooltip.hide();
+    });
+    this.$slots.addEventListener('focusin', (e) => this.maybeTooltip(e, false));
+    this.$slots.addEventListener('focusout', (e) => {
+      if (e.target.closest('.port-rj45')) Tooltip.hide();
+    });
+  },
+
+  maybeTooltip(e, isPointer) {
+    const port = e.target.closest('.port-rj45');
+    if (!port || !port.dataset.portId) return;
+    const [uPart, pPart] = port.dataset.portId.split('-');
+    Tooltip.show(port, port.dataset.ptype, parseInt(uPart.slice(1), 10), parseInt(pPart.slice(1), 10));
+  },
+
+  handleDrop(slot) {
+    const u = parseInt(slot.dataset.u, 10);
+    if (this.fromSidebar && this.draggedEl) {
+      this.placeType(this.draggedEl.dataset.deviceType, u);
+    } else if (this.draggedEl?.classList.contains('placed')) {
+      const type = this.draggedEl.dataset.type;
+      if (!this.canPlace(u, uHeightOf(type), this.draggedEl)) {
+        Toast.show(`Can't move here — needs ${uHeightOf(type)}U of free space.`);
+        return;
+      }
+      slot.appendChild(this.draggedEl);
+      this.rebindPorts(this.draggedEl, u);
+      this.commit();
+    }
+  },
+
+  placeType(type, u) {
+    const uHeight = uHeightOf(type);
+    if (!this.canPlace(u, uHeight)) {
+      Toast.show(`Can't place — needs ${uHeight}U of free space here.`);
+      return;
+    }
+    const slot = this.slot(u);
+    slot.appendChild(createDevice(type, u));
+    this.placingType = null;
+    this.updatePlacementUi();
+    this.commit();
+  },
+
+  canPlace(targetU, uHeight, ignore = null) {
+    targetU = parseInt(targetU, 10);
+    for (let i = 0; i < uHeight; i++) {
+      const u = targetU - i;
+      if (u < 1 || u > this.maxU) return false;
+      const slot = this.slot(u);
+      if (!slot) return false;
+      const dev = slot.querySelector('.device');
+      if (dev && dev !== ignore) return false;
+      const coveredBy = slot.getAttribute('data-occupied-by');
+      if (coveredBy && !(ignore && ignore.parentElement?.dataset.u === coveredBy)) return false;
+    }
+    return true;
+  },
+
+  selectDevice(device) {
+    document.querySelectorAll('.device.placed.selected').forEach((d) => d.classList.remove('selected'));
+    device.classList.add('selected');
+    device.focus();
+  },
+
+  removeDevice(device) {
+    if (!device) return;
+    device.querySelectorAll('.port-rj45').forEach((port) => {
+      const id = port.dataset.portId;
+      this.connections = this.connections.filter((c) => c.from !== id && c.to !== id);
+    });
+    device.remove();
+    this.commit();
+  },
+
+  moveSelected(direction) {
+    const device = document.querySelector('.device.placed.selected');
+    if (!device) return;
+    const fromU = parseInt(device.parentElement.dataset.u, 10);
+    const type = device.dataset.type;
+    const uHeight = uHeightOf(type);
+    const targetU = fromU + direction;
+    if (!this.canPlace(targetU, uHeight, device)) return;
+    this.slot(targetU).appendChild(device);
+    this.rebindPorts(device, targetU);
+    device.focus();
+    this.commit();
+  },
+
+  rebindPorts(device, u) {
+    device.querySelectorAll('.port-rj45').forEach((port, idx) => {
+      const oldId = port.dataset.portId;
+      const newId = `u${u}-p${idx}`;
+      port.dataset.portId = newId;
+      this.connections.forEach((c) => {
+        if (c.from === oldId) c.from = newId;
+        if (c.to === oldId) c.to = newId;
+      });
+    });
+  },
+
+  /* ------------------------------------------------------- State lifecycle */
+
+  /** Snapshot the current DOM + connections into a plain state object. */
+  getState() {
+    const rack = [];
+    for (let u = 1; u <= this.maxU; u++) {
+      const dev = this.slot(u)?.querySelector('.device');
+      if (dev) {
+        const labels = [...dev.querySelectorAll('.port-label')].map((i) => i.value);
+        rack.push({ u, type: dev.dataset.type, labels });
+      }
+    }
+    return { maxU: this.maxU, rack, connections: structuredClone(this.connections) };
+  },
+
+  /** Rebuild the rack DOM from a state object. */
+  loadState(state, { record = false, resetHistory = false } = {}) {
+    this.maxU = state.maxU;
+    document.getElementById('input-max-u').value = this.maxU;
+    this.renderSlots();
+
+    state.rack.forEach((item) => {
+      const slot = this.slot(item.u);
+      if (!slot) return;
+      const dev = createDevice(item.type, item.u);
+      slot.appendChild(dev);
+      dev.querySelectorAll('.port-label').forEach((inp, idx) => {
+        inp.value = item.labels?.[idx] ?? '';
+      });
+    });
+
+    this.connections = structuredClone(state.connections);
+    if (resetHistory) {
+      this.history = [];
+      this.historyIndex = -1;
+    }
+    if (record) this.pushHistory(this.getState());
+    this.refresh();
+  },
+
+  /** Record a user action: push a history entry and refresh derived views. */
+  commit() {
+    this.pushHistory(this.getState());
+    this.refresh();
+  },
+
+  pushHistory(snapshot) {
+    this.history = this.history.slice(0, this.historyIndex + 1);
+    this.history.push(snapshot);
+    if (this.history.length > MAX_HISTORY) this.history.shift();
+    this.historyIndex = this.history.length - 1;
+    this.updateUndoRedoButtons();
+  },
+
+  undo() {
+    if (this.historyIndex <= 0) return;
+    this.historyIndex--;
+    this.loadState(this.history[this.historyIndex]);
+    this.updateUndoRedoButtons();
+  },
+
+  redo() {
+    if (this.historyIndex >= this.history.length - 1) return;
+    this.historyIndex++;
+    this.loadState(this.history[this.historyIndex]);
+    this.updateUndoRedoButtons();
+  },
+
+  updateUndoRedoButtons() {
+    document.getElementById('btn-undo').disabled = this.historyIndex <= 0;
+    document.getElementById('btn-redo').disabled = this.historyIndex >= this.history.length - 1;
+  },
+
+  /** Recompute all derived views from the current DOM (no history push). */
+  refresh() {
+    this.updateOccupiedSlots();
+    this.pruneConnections();
+    this.updateThermalMap();
+    this.requestRedraw();
+    this.updateReport();
+    this.updatePowerSummary();
+    Persistence.save(this.getState());
+  },
+
+  updateOccupiedSlots() {
+    document.querySelectorAll('.slot').forEach((slot) => {
+      slot.removeAttribute('data-occupied-by');
+      slot.classList.remove('slot-blocked');
+      const bay = slot.querySelector('.slot-bay');
+      if (bay && !slot.querySelector('.device')) {
+        bay.textContent = `U${slot.dataset.u}`;
+        bay.style.display = 'flex';
+      }
+    });
+
+    document.querySelectorAll('.slot .device.placed').forEach((dev) => {
+      const u = parseInt(dev.parentElement.dataset.u, 10);
+      const uHeight = uHeightOf(dev.dataset.type);
+      for (let i = 1; i < uHeight; i++) {
+        const covered = this.slot(u - i);
+        if (!covered) continue;
+        covered.setAttribute('data-occupied-by', String(u));
+        covered.classList.add('slot-blocked');
+        const bay = covered.querySelector('.slot-bay');
+        if (bay) bay.style.display = 'none';
+      }
+    });
+  },
+
+  pruneConnections() {
+    this.connections = this.connections.filter(
+      (c) => document.querySelector(`[data-port-id="${c.from}"]`) && document.querySelector(`[data-port-id="${c.to}"]`)
+    );
+  },
+
+  requestRedraw() {
+    if (this.redrawPending) return;
+    this.redrawPending = true;
+    requestAnimationFrame(() => {
+      this.redrawConnections();
+      this.redrawPending = false;
+    });
+  },
+
+  redrawConnections() {
+    const svg = this.$svg;
+    if (!svg) return;
+    svg.querySelectorAll('path.cable-path').forEach((p) => p.remove());
+    document.querySelectorAll('.slot .led').forEach((led) => (led.className = 'led'));
+
+    const organizers = this.getState().rack.filter((d) => d.type === 'brush-panel').map((d) => d.u);
+    const counts = { std: 0, xg: 0, wan: 0, sfp: 0, patch: 0, conflict: 0 };
+
+    this.connections.forEach((c, index) => {
+      const portA = document.querySelector(`[data-port-id="${c.from}"]`);
+      const portB = document.querySelector(`[data-port-id="${c.to}"]`);
+      if (!portA || !portB) return;
+
+      const a = getPortCenterInSVG(svg, portA);
+      const b = getPortCenterInSVG(svg, portB);
+
+      const uA = parseInt(c.from.split('-')[0].slice(1), 10);
+      const uB = parseInt(c.to.split('-')[0].slice(1), 10);
+      let routeY = null;
+      organizers.forEach((uOrg) => {
+        if ((uA > uOrg && uOrg > uB) || (uB > uOrg && uOrg > uA)) {
+          const org = this.slot(uOrg);
+          if (org) routeY = getPortCenterInSVG(svg, org).y;
+        }
+      });
+
+      const { color, kind } = this.classifyCable(c.from, c.to, portA, portB);
+      counts[kind]++;
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('class', 'cable-path');
+      path.setAttribute('d', cablePath(a.x, a.y, b.x, b.y, routeY));
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', '2.8');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('filter', 'url(#cable-shadow)');
+      svg.appendChild(path);
+
+      this.lightLED(portA);
+      this.lightLED(portB);
+    });
+
+    document.getElementById('cable-count-badge').textContent = this.connections.length;
+    this.$cableBreakdown.innerHTML = `
+      ${metricRow('🔵 Standard / PoE', counts.std, 'var(--accent-blue)')}
+      ${metricRow('🟠 10G copper', counts.xg, 'var(--accent-orange)')}
+      ${metricRow('🔴 WAN uplink', counts.wan, 'var(--accent-red)')}
+      ${metricRow('🌐 SFP+ fiber', counts.sfp, 'var(--accent-sfp)')}
+      ${metricRow('⚪ Patch jumpers', counts.patch, 'var(--text-muted)')}
+      ${metricRow('❌ Media mismatch', counts.conflict, 'var(--accent-red)')}
+    `;
+  },
+
+  classifyCable(fromId, toId, portA, portB) {
+    const ptypeA = this.portType(fromId);
+    const ptypeB = this.portType(toId);
+    const mediaA = PORT_MEDIA_TYPES[ptypeA];
+    const mediaB = PORT_MEDIA_TYPES[ptypeB];
+
+    if (mediaA !== 'any' && mediaB !== 'any' && mediaA !== mediaB) {
+      return { color: 'var(--accent-red)', kind: 'conflict' };
+    }
+    if (ptypeA === 'sfp' || ptypeB === 'sfp') return { color: 'var(--accent-sfp)', kind: 'sfp' };
+    if (ptypeA?.startsWith('wan') || ptypeB?.startsWith('wan')) return { color: 'var(--accent-red)', kind: 'wan' };
+    if (ptypeA?.includes('10g') || ptypeB?.includes('10g')) return { color: 'var(--accent-orange)', kind: 'xg' };
+
+    const aPatch = portA.closest('.device')?.dataset.type.startsWith('patch');
+    const bPatch = portB.closest('.device')?.dataset.type.startsWith('patch');
+    if (aPatch && bPatch) return { color: 'var(--patch-cable)', kind: 'patch' };
+    return { color: 'var(--accent-blue)', kind: 'std' };
+  },
+
+  portType(portId) {
+    const [uPart, pPart] = portId.split('-');
+    const dev = this.slot(parseInt(uPart.slice(1), 10))?.querySelector('.device');
+    if (!dev) return null;
+    return DEVICE_TYPES[dev.dataset.type].ports[parseInt(pPart.slice(1), 10)];
+  },
+
+  lightLED(port) {
+    const led = port.closest('.switch-port-unit')?.querySelector('.led');
+    if (!led) return;
+    if (port.classList.contains('port-sfp')) led.className = 'led active-cyan blink-slow';
+    else if (port.classList.contains('port-10g')) led.className = 'led active-orange blink';
+    else if (port.classList.contains('port-poe')) led.className = 'led active-blue blink';
+    else led.className = 'led active-green blink';
+  },
+
+  updateThermalMap() {
+    document.querySelectorAll('.slot').forEach((s) => s.classList.remove('thermal-hotspot'));
+    for (let u = 1; u < this.maxU; u++) {
+      const dev1 = this.slot(u)?.querySelector('.device');
+      const dev2 = this.slot(u + 1)?.querySelector('.device');
+      if (!dev1 || !dev2) continue;
+      const h1 = DEVICE_TYPES[dev1.dataset.type].heatWeight ?? 0;
+      const h2 = DEVICE_TYPES[dev2.dataset.type].heatWeight ?? 0;
+      if (h1 + h2 >= 6) {
+        this.slot(u).classList.add('thermal-hotspot');
+        this.slot(u + 1).classList.add('thermal-hotspot');
+      }
+    }
+  },
+
+  updateReport() {
+    this.$report.innerHTML = '';
+    for (let u = this.maxU; u >= 1; u--) {
+      const slot = this.slot(u);
+      const device = slot?.querySelector('.device');
+      const coveredBy = slot?.getAttribute('data-occupied-by');
+      const item = document.createElement('div');
+      item.className = 'report-item';
+      item.setAttribute('role', 'listitem');
+      if (device) {
+        item.classList.add('occupied');
+        item.innerHTML = `<span class="u-badge">U${u}</span><span class="text-blue">${DEVICE_TYPES[device.dataset.type].name}</span>`;
+      } else if (coveredBy) {
+        item.innerHTML = `<span class="u-badge text-muted">U${u}</span><span class="text-muted">↳ covered by U${coveredBy}</span>`;
+      } else {
+        item.innerHTML = `<span class="u-badge text-muted">U${u}</span><span class="text-muted">empty</span>`;
+      }
+      this.$report.appendChild(item);
+    }
+  },
+
+  updatePowerSummary() {
+    const m = computeMetrics(this.getState().rack, this.maxU);
+    const thermalLabel = { cool: '🟢 Cool', warm: '🟡 Warm', high: '🔴 High' }[m.thermalLevel];
+    this.$power.innerHTML = `
+      ${metricRow('Devices', m.deviceCount)}
+      ${metricRow('Units used', `${m.usedU} / ${m.maxU} U`)}
+      ${metricRow('Est. power draw', `${m.totalWatts} W`)}
+      ${metricRow('PoE available', `${m.poeSupply} W`)}
+      ${metricRow('PoE in use (approx)', `${m.poeDemand} W · ${m.poeLoad}%`)}
+      ${metricRow('Thermal load', thermalLabel)}
+    `;
+  },
+
+  /* ----------------------------------------------------------- Controls */
+
+  bindGlobalControls() {
+    document.getElementById('input-max-u').addEventListener('change', (e) => {
+      let val = parseInt(e.target.value, 10);
+      if (isNaN(val)) val = 6;
+      val = Math.max(1, Math.min(16, val));
+      e.target.value = val;
+      this.changeMaxU(val);
+    });
+
+    document.getElementById('btn-zoom-in').addEventListener('click', () => this.setZoom(this.zoom + 0.1));
+    document.getElementById('btn-zoom-out').addEventListener('click', () => this.setZoom(this.zoom - 0.1));
+    document.getElementById('btn-zoom-reset').addEventListener('click', () => this.setZoom(1));
+
+    document.getElementById('btn-undo').addEventListener('click', () => this.undo());
+    document.getElementById('btn-redo').addEventListener('click', () => this.redo());
+
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      if (this.getState().rack.length === 0 && this.connections.length === 0) return;
+      if (confirm('Clear the entire rack?')) {
+        document.querySelectorAll('.slot .device').forEach((d) => d.remove());
+        this.connections = [];
+        this.commit();
+      }
+    });
+
+    document.getElementById('btn-export-png').addEventListener('click', (e) => exportPNG(e.currentTarget));
+    document.getElementById('btn-copy-report').addEventListener('click', () => this.copyReport());
+    document.getElementById('btn-share').addEventListener('click', () => this.copyShareLink());
+    document.getElementById('btn-export-json').addEventListener('click', () => this.downloadJSON());
+
+    const fileInput = document.getElementById('file-import');
+    document.getElementById('btn-import-json').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => this.importJSON(e.target.files[0]));
+
+    document.addEventListener('keydown', (e) => this.handleKeydown(e));
+  },
+
+  handleKeydown(e) {
+    const editing = document.activeElement?.tagName === 'INPUT';
+    const mod = e.ctrlKey || e.metaKey;
+
+    if (mod && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      e.shiftKey ? this.redo() : this.undo();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      this.redo();
+      return;
+    }
+    if (editing) return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      const selected = document.querySelector('.device.placed.selected');
+      if (selected) {
+        e.preventDefault();
+        this.removeDevice(selected);
+      }
+    } else if (e.key === 'ArrowUp' && document.querySelector('.device.placed.selected')) {
+      e.preventDefault();
+      this.moveSelected(1);
+    } else if (e.key === 'ArrowDown' && document.querySelector('.device.placed.selected')) {
+      e.preventDefault();
+      this.moveSelected(-1);
+    } else if (e.key === 'Escape' && this.placingType) {
+      this.placingType = null;
+      this.updatePlacementUi();
+    }
+  },
+
+  setZoom(z) {
+    this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z * 10) / 10));
+    this.$wrapper.style.transform = `scale(${this.zoom})`;
+    this.$wrapper.style.transformOrigin = 'top center';
+    document.getElementById('zoom-label').textContent = `${Math.round(this.zoom * 100)}%`;
+    this.requestRedraw();
+  },
+
+  changeMaxU(newMaxU) {
+    if (newMaxU === this.maxU) return;
+    const state = this.getState();
+    state.maxU = newMaxU;
+    state.rack = state.rack.filter((item) => item.u <= newMaxU);
+    this.loadState(state, { record: true });
+  },
+
+  copyReport() {
+    const rack = this.getState().rack;
+    let report = `Mini Rack Simulator — Assembly Report (${this.maxU}U)\n`;
+    report += '='.repeat(48) + '\n';
+    if (rack.length === 0) report += '(empty rack)\n';
+    rack
+      .slice()
+      .reverse()
+      .forEach((r) => (report += `[U${r.u}] ${DEVICE_TYPES[r.type].name}\n`));
+    report += `\nCables: ${this.connections.length}`;
+    this.copyText(report, 'Report copied to clipboard.');
+  },
+
+  copyShareLink() {
+    const url = Persistence.buildShareUrl(this.getState());
+    this.copyText(url, 'Share link copied to clipboard.');
+  },
+
+  copyText(text, successMsg) {
+    navigator.clipboard?.writeText(text).then(
+      () => Toast.show(successMsg),
+      () => Toast.show('Copy failed — clipboard unavailable.')
+    );
+  },
+
+  downloadJSON() {
+    const blob = new Blob([Persistence.toJSON(this.getState())], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `rack-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  },
+
+  async importJSON(file) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      this.loadState(Persistence.fromJSON(text), { record: true });
+      Toast.show('Layout imported.');
+    } catch {
+      Toast.show('Import failed — invalid JSON file.');
+    }
+    document.getElementById('file-import').value = '';
+  },
+
+  slot(u) {
+    return this.$slots.querySelector(`.slot[data-u="${u}"]`);
+  },
+};
+
+function metricRow(label, value, color) {
+  const style = color ? ` style="color:${color}"` : '';
+  return `<div class="metric-row"><span>${label}</span><strong${style}>${value}</strong></div>`;
+}

@@ -1,0 +1,224 @@
+.rack-wrapper-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+  overflow: visible;
+}
+
+.rack-wrapper {
+  position: relative;
+  width: 372px;
+  padding-top: 35px;
+  transition: transform 0.15s ease-out;
+}
+
+#cable-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+  overflow: visible;
+}
+
+svg path.cable-path {
+  pointer-events: visibleStroke;
+  stroke-dasharray: 8, 3;
+  animation: cableFlow 12s linear infinite;
+  transition: stroke-width 0.2s, stroke 0.2s;
+}
+svg path.cable-path:hover {
+  stroke-width: 4.5px !important;
+  cursor: pointer;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+}
+
+@keyframes cableFlow {
+  from {
+    stroke-dashoffset: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.rack-cabinet {
+  position: relative;
+  width: 100%;
+  padding: 24px;
+  background: #1e293b;
+  border: 2px solid #475569;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5), 0 20px 40px -10px rgba(0, 0, 0, 0.4);
+}
+
+.rack-top-handles {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 40px;
+  pointer-events: none;
+  z-index: 5;
+}
+.industrial-handle {
+  display: block;
+  width: 68px;
+  height: 20px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(to bottom, #f8fafc, #cbd5e1 60%, #94a3b8);
+  border: 2px solid #475569;
+  border-bottom: none;
+}
+
+.metal-bezel {
+  position: absolute;
+  border: 1.5px solid #475569;
+  z-index: 4;
+}
+.bezel-top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  border-bottom: 2.5px solid #475569;
+  background: linear-gradient(to bottom, #f8fafc, #cbd5e1 60%, #94a3b8);
+}
+.bezel-bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  border-top: 2.5px solid #475569;
+  background: linear-gradient(to top, #f8fafc, #cbd5e1 60%, #94a3b8);
+}
+.bezel-left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 24px;
+  border-right: 2.5px solid #475569;
+  background: linear-gradient(to right, #f8fafc, #cbd5e1 60%, #94a3b8);
+}
+.bezel-right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 24px;
+  border-left: 2.5px solid #475569;
+  background: linear-gradient(to left, #f8fafc, #cbd5e1 60%, #94a3b8);
+}
+
+.slots-container {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slot-row {
+  display: flex;
+  align-items: center;
+}
+
+.slot {
+  position: relative;
+  width: 320px;
+  height: 48px;
+  background: rgba(30, 41, 59, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background-color 0.3s;
+}
+.slot.slot-blocked {
+  background: rgba(15, 23, 42, 0.2);
+}
+.slot.slot-blocked .slot-bay {
+  display: none !important;
+}
+
+/* Rails */
+.slot::before,
+.slot::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 20px;
+  height: 100%;
+  background: linear-gradient(to right, #94a3b8, #64748b, #94a3b8);
+  z-index: 1;
+}
+.slot::before {
+  left: 0;
+  border-right: 1px solid #475569;
+}
+.slot::after {
+  right: 0;
+  border-left: 1px solid #475569;
+}
+
+.rail-screw-hole-l,
+.rail-screw-hole-r {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1e293b;
+  border: 1px solid #94a3b8;
+  z-index: 2;
+}
+.rail-screw-hole-l {
+  left: 7px;
+}
+.rail-screw-hole-r {
+  right: 7px;
+}
+.rail-screw-hole-l.h1,
+.rail-screw-hole-r.h1 {
+  top: 5px;
+}
+.rail-screw-hole-l.h2,
+.rail-screw-hole-r.h2 {
+  top: 22px;
+}
+.rail-screw-hole-l.h3,
+.rail-screw-hole-r.h3 {
+  top: 39px;
+}
+
+.slot-bay {
+  width: 280px;
+  height: 100%;
+  margin-left: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background-color: rgba(15, 23, 42, 0.6);
+  color: #64748b;
+  font: 10px/1 monospace;
+  letter-spacing: 1px;
+  z-index: 2;
+  transition: all 0.2s ease;
+}
+.slot.drag-over .slot-bay,
+.slots-container.picking .slot:not(.slot-blocked) .slot-bay {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+.slot.drag-over .slot-bay {
+  background-color: rgba(0, 85, 255, 0.15);
+}
+.slots-container.picking .slot:not(.slot-blocked):hover .slot-bay {
+  background-color: rgba(0, 85, 255, 0.15);
+  cursor: pointer;
+}
+
+/* Thermal hot-spot marker: warm glow on the bay, rails left intact */
+.slot.thermal-hotspot .slot-bay {
+  box-shadow: inset 0 0 12px 1px rgba(249, 115, 22, 0.55);
+  border-color: rgba(249, 115, 22, 0.6);
+}

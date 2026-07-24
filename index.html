@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Interactive 10-inch half-rack planner: place network gear, patch cables, and track power, heat, and cabling in real time."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Mini Rack Simulator — 10-inch Rack Planner</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%230055ff'/%3E%3Crect x='3' y='4' width='10' height='2' rx='.5' fill='white'/%3E%3Crect x='3' y='7' width='10' height='2' rx='.5' fill='white'/%3E%3Crect x='3' y='10' width='10' height='2' rx='.5' fill='white'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <a class="skip-link" href="#rack-stage">Skip to rack</a>
+
+    <header class="app-header">
+      <div class="app-title">
+        <h1>Mini Rack Simulator</h1>
+        <p class="subtitle">10-inch half-rack build planner</p>
+      </div>
+      <div class="app-toolbar" role="toolbar" aria-label="Global actions">
+        <button id="btn-undo" class="btn btn-icon" type="button" aria-label="Undo" disabled title="Undo (Ctrl/Cmd+Z)">↶</button>
+        <button id="btn-redo" class="btn btn-icon" type="button" aria-label="Redo" disabled title="Redo (Ctrl/Cmd+Shift+Z)">↷</button>
+        <button id="btn-theme" class="btn" type="button" aria-pressed="false">🌙 Dark</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <!-- Device library -->
+      <aside class="panel sidebar" aria-label="Device library">
+        <div class="panel-title">
+          Device Library
+          <button id="btn-sidebar-toggle" class="btn btn-icon sidebar-toggle" type="button" aria-expanded="true" aria-controls="sidebar-body" aria-label="Collapse device library">▾</button>
+        </div>
+        <div id="sidebar-body" class="sidebar-body">
+          <input
+            type="search"
+            id="search-sidebar"
+            class="search-input"
+            placeholder="Search devices (UCG, Dell, DeskPi, PoE…)"
+            aria-label="Search devices"
+          />
+          <p class="placement-hint" id="placement-hint" hidden></p>
+          <div id="sidebar-categories"></div>
+        </div>
+      </aside>
+
+      <!-- Rack stage -->
+      <section class="center-stage" id="rack-stage" aria-label="Rack">
+        <div class="stage-controls" role="toolbar" aria-label="Rack view controls">
+          <button id="btn-zoom-out" class="btn btn-icon" type="button" aria-label="Zoom out">−</button>
+          <span id="zoom-label" class="zoom-label" aria-live="polite">100%</span>
+          <button id="btn-zoom-in" class="btn btn-icon" type="button" aria-label="Zoom in">+</button>
+          <button id="btn-zoom-reset" class="btn" type="button">Reset</button>
+        </div>
+        <div class="rack-wrapper-container">
+          <div class="rack-wrapper" id="rack-wrapper">
+            <svg id="cable-svg" aria-hidden="true">
+              <defs>
+                <filter id="cable-shadow" filterUnits="userSpaceOnUse">
+                  <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#090d16" flood-opacity="0.3" />
+                </filter>
+              </defs>
+            </svg>
+            <div class="rack-cabinet">
+              <div class="rack-top-handles" aria-hidden="true">
+                <span class="industrial-handle"></span>
+                <span class="industrial-handle"></span>
+              </div>
+              <div class="metal-bezel bezel-top" aria-hidden="true"></div>
+              <div class="metal-bezel bezel-bottom" aria-hidden="true"></div>
+              <div class="metal-bezel bezel-left" aria-hidden="true"></div>
+              <div class="metal-bezel bezel-right" aria-hidden="true"></div>
+              <div class="slots-container" id="slots-container" role="list" aria-label="Rack units"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Inspector / controls -->
+      <aside class="right-bar" aria-label="Rack details and controls">
+        <div class="panel">
+          <div class="panel-title">Rack Size</div>
+          <div class="counter-box">
+            <label class="counter-label" for="input-max-u">Total units (U)</label>
+            <input type="number" id="input-max-u" min="1" max="16" value="6" class="u-input" />
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Power &amp; Thermal</div>
+          <div id="power-summary" class="metric-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">🔌 Cabling</div>
+          <div class="counter-box counter-box--hero">
+            <span class="counter-label">Total cables</span>
+            <span id="cable-count-badge" class="counter-number">0</span>
+          </div>
+          <div id="cable-breakdown" class="metric-list metric-list--compact"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Rack Assembly</div>
+          <div id="report-list" class="report-list" role="list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Export &amp; Data</div>
+          <div class="button-group">
+            <button id="btn-export-png" class="btn btn-primary" type="button">📸 Export PNG</button>
+            <button id="btn-share" class="btn" type="button">🔗 Copy Share Link</button>
+            <button id="btn-copy-report" class="btn" type="button">📋 Copy Text Report</button>
+            <div class="button-row">
+              <button id="btn-export-json" class="btn" type="button">Save JSON</button>
+              <button id="btn-import-json" class="btn" type="button">Load JSON</button>
+            </div>
+            <button id="btn-clear" class="btn btn-danger" type="button">Clear Rack</button>
+            <input type="file" id="file-import" accept="application/json,.json" hidden />
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <div id="global-tooltip" class="port-tooltip" role="tooltip" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
