@@ -1,0 +1,36 @@
+:root {
+  --bg-color: #f1f5f9;
+  --panel-bg: #ffffff;
+  --panel-border: #cbd5e1;
+  --panel-subtle: rgba(148, 163, 184, 0.08);
+  --text-color: #0f172a;
+  --text-muted: #64748b;
+
+  --accent-blue: #0055ff; /* PoE classic blue */
+  --accent-green: #10b981; /* gigabit green */
+  --accent-orange: #f97316; /* 10G orange */
+  --accent-sfp: #00b4d8; /* SFP+ light blue */
+  --accent-red: #ef4444;
+
+  --cable-active: rgba(15, 23, 42, 0.7);
+  --patch-cable: #94a3b8;
+  --rack-rail-color: #94a3b8;
+
+  --focus-ring: 0 0 0 3px rgba(0, 85, 255, 0.45);
+  --shadow-panel: 0 10px 25px rgba(15, 23, 42, 0.08);
+  --radius: 12px;
+}
+
+body.dark-mode {
+  --bg-color: #0f172a;
+  --panel-bg: #1e293b;
+  --panel-border: #334155;
+  --panel-subtle: rgba(148, 163, 184, 0.06);
+  --text-color: #f8fafc;
+  --text-muted: #94a3b8;
+  --rack-rail-color: #475569;
+  --accent-sfp: #00f0ff; /* brighter SFP+ glow in dark */
+  --cable-active: rgba(255, 255, 255, 0.85);
+  --patch-cable: #cbd5e1;
+  --shadow-panel: 0 10px 25px rgba(0, 0, 0, 0.35);
+}
