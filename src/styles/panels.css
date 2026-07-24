@@ -57,6 +57,15 @@
 .metric-row strong {
   font-weight: 700;
 }
+.metric-sub {
+  font-size: 11px;
+  padding-left: 4px;
+}
+.metric-sub span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .cost-total {
   font-size: 18px;

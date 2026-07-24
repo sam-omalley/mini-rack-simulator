@@ -1,5 +1,6 @@
 import { DEVICE_TYPES } from '../data/devices.js';
 import { rackByU, classifyConnection, portTypeAt } from '../render/cableClassify.js';
+import { computePoe } from './poe.js';
 
 /**
  * Static design checks over a rack state. Pure — takes a snapshot, returns a
@@ -64,12 +65,12 @@ export function validateRack(state) {
     }
   });
 
-  // 3. Coarse PoE budget check (an accurate, per-switch version lands in #11).
-  const supply = state.rack.reduce((s, d) => s + (DEVICE_TYPES[d.type]?.poeBudget || 0), 0);
-  const demand = state.rack.reduce((s, d) => (DEVICE_TYPES[d.type]?.poeIn ? s + (DEVICE_TYPES[d.type]?.watts || 0) : s), 0);
-  if (supply > 0 && demand > supply) {
-    warnings.push({ severity: 'warn', code: 'poe-budget', message: `PoE demand (~${round(demand)} W) may exceed supply (${supply} W).` });
-  }
+  // 3. Per-switch PoE over-budget (connection-aware).
+  computePoe(state).sources.forEach((s) => {
+    if (s.over) {
+      warnings.push({ severity: 'error', code: 'poe-over', message: `${s.name} (U${s.u}) PoE over budget: ${s.load} W of ${s.budget} W.` });
+    }
+  });
 
   const order = { error: 0, warn: 1, info: 2 };
   return warnings.sort((a, b) => order[a.severity] - order[b.severity]);
@@ -81,8 +82,4 @@ function fmtPort(map, portId) {
   const idx = parseInt(pPart.slice(1), 10);
   const name = DEVICE_TYPES[map.get(u)]?.name ?? 'Unknown';
   return `${name} U${u}·P${idx + 1}`;
-}
-
-function round(n) {
-  return Math.round(n * 10) / 10;
 }
