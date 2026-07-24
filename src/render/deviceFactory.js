@@ -36,7 +36,7 @@ export function createDevice(type, uSlot = null) {
 
   // Rear (power-side) face — shown when the rack is flipped to rear view.
   const rear = el('div', 'device-rear');
-  const inlets = spec.layout === 'pdu' ? spec.outlets ?? 8 : 1;
+  const inlets = spec.layout === 'pdu' ? (spec.outlets ?? 8) : 1;
   const inletHtml = spec.layout === 'pdu' ? '<span class="rear-inlet rear-inlet--iec"></span>' : '<span class="rear-inlet"></span>';
   rear.innerHTML = `${inletHtml}<span class="rear-label">${escapeHtml(spec.name)}</span>${
     inlets > 1 ? '<span class="rear-outlets">' + '<span class="rear-outlet"></span>'.repeat(inlets) + '</span>' : ''

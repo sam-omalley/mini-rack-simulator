@@ -73,7 +73,10 @@ function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
 }
 function slug(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 function collectFiles(paths) {

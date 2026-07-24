@@ -34,7 +34,9 @@ function endpoint(map, labelsByU, portId) {
 }
 
 export function scheduleToCsv(schedule) {
-  const rows = [['From U', 'From Device', 'From Port', 'From Label', 'To U', 'To Device', 'To Port', 'To Label', 'Cable Type', 'Cable Label']];
+  const rows = [
+    ['From U', 'From Device', 'From Port', 'From Label', 'To U', 'To Device', 'To Port', 'To Label', 'Cable Type', 'Cable Label'],
+  ];
   schedule.forEach((r) => {
     rows.push([r.from.u, r.from.device, r.from.port, r.from.label, r.to.u, r.to.device, r.to.port, r.to.label, r.kindLabel, r.label]);
   });

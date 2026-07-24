@@ -121,9 +121,7 @@ function normalize(data) {
           return out;
         })
     : [];
-  const custom = Array.isArray(data?.custom)
-    ? data.custom.filter((d) => d && typeof d.type === 'string' && Array.isArray(d.ports))
-    : [];
+  const custom = Array.isArray(data?.custom) ? data.custom.filter((d) => d && typeof d.type === 'string' && Array.isArray(d.ports)) : [];
   return { maxU, rack, connections, custom };
 }
 
