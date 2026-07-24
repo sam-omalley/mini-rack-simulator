@@ -5,6 +5,8 @@ import { createDevice } from './render/deviceFactory.js';
 import { computeMetrics } from './render/metrics.js';
 import { CableManager } from './render/cableManager.js';
 import { classifyConnection, rackByU } from './render/cableClassify.js';
+import { STEP, snapAnchor, moveStep, halfRows } from './render/grid.js';
+import { parsePortId, portU, makePortId } from './utils/ports.js';
 import { Persistence } from './features/persistence.js';
 import { computeBom, bomToCsv } from './features/bom.js';
 import { computeSchedule, scheduleToCsv } from './features/cableSchedule.js';
@@ -136,8 +138,12 @@ export const App = {
       this.fromSidebar = true;
       e.dataTransfer.effectAllowed = 'copy';
       card.classList.add('dragging');
+      this.beginDrag(type);
     });
-    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      this.endDrag();
+    });
     card.addEventListener('click', (e) => {
       if (e.target.closest('[data-remove-type]')) {
         e.stopPropagation();
@@ -429,20 +435,23 @@ export const App = {
     } else {
       this.$hint.hidden = true;
     }
+    this.refreshHalfGrid();
   },
 
   /* ------------------------------------------------------------ Rack slots */
 
   renderSlots() {
     this.$slots.innerHTML = '';
-    for (let u = this.maxU; u >= 1; u--) {
+    // Half-row grid: two slots per U. Whole-U rows carry the "U" label + rail
+    // holes; the intermediate .5 rows are slimmer, unlabeled dividers.
+    for (const u of halfRows(this.maxU)) {
+      const whole = Number.isInteger(u);
       const row = document.createElement('div');
-      row.className = 'slot-row';
+      row.className = `slot-row${whole ? '' : ' slot-row--half'}`;
       row.innerHTML = `
-        <div class="slot" data-u="${u}" role="listitem" aria-label="Rack unit ${u}">
-          <span class="rail-screw-hole-l h1"></span><span class="rail-screw-hole-l h2"></span><span class="rail-screw-hole-l h3"></span>
-          <span class="rail-screw-hole-r h1"></span><span class="rail-screw-hole-r h2"></span><span class="rail-screw-hole-r h3"></span>
-          <div class="slot-bay">U${u}</div>
+        <div class="slot${whole ? '' : ' slot--half'}" data-u="${u}" role="listitem" aria-label="Rack unit ${u}">
+          ${whole ? '<span class="rail-screw-hole-l h1"></span><span class="rail-screw-hole-r h1"></span>' : ''}
+          <div class="slot-bay">${whole ? `U${u}` : ''}</div>
         </div>`;
       this.$slots.appendChild(row);
     }
@@ -464,7 +473,7 @@ export const App = {
       if (!slot) return;
       e.preventDefault();
       slot.classList.remove('drag-over');
-      this.handleDrop(slot);
+      this.handleDrop(slot, e.altKey);
     });
 
     // Tap-to-place, device select, duplicate, delete.
@@ -482,7 +491,7 @@ export const App = {
       }
       const slot = e.target.closest('.slot');
       if (this.placingType && slot && !e.target.closest('.device')) {
-        this.placeType(this.placingType, parseInt(slot.dataset.u, 10));
+        this.placeType(this.placingType, Number(slot.dataset.u), e.altKey);
         return;
       }
       const device = e.target.closest('.device.placed');
@@ -499,9 +508,11 @@ export const App = {
       this.fromSidebar = false;
       e.dataTransfer.effectAllowed = 'move';
       device.classList.add('dragging');
+      this.beginDrag(device.dataset.type);
     });
     this.$slots.addEventListener('dragend', (e) => {
       e.target.closest('.device.placed')?.classList.remove('dragging');
+      this.endDrag();
     });
 
     // Patch-panel label edits (debounced into history).
@@ -533,8 +544,8 @@ export const App = {
   maybeTooltip(e) {
     const port = e.target.closest('.port-rj45');
     if (!port || !port.dataset.portId) return;
-    const [uPart, pPart] = port.dataset.portId.split('-');
-    Tooltip.show(port, port.dataset.ptype, parseInt(uPart.slice(1), 10), parseInt(pPart.slice(1), 10));
+    const { u, idx } = parsePortId(port.dataset.portId);
+    Tooltip.show(port, port.dataset.ptype, u, idx);
   },
 
   /** Emphasise the cables touching a device; dim the rest. Pass null to clear. */
@@ -554,30 +565,31 @@ export const App = {
     this.$svg.classList.toggle('focusing', any);
   },
 
-  handleDrop(slot) {
-    const u = parseInt(slot.dataset.u, 10);
+  handleDrop(slot, alt = false) {
+    const dropU = Number(slot.dataset.u);
     if (this.fromSidebar && this.draggedEl) {
-      this.placeType(this.draggedEl.dataset.deviceType, u);
+      this.placeType(this.draggedEl.dataset.deviceType, dropU, alt);
     } else if (this.draggedEl?.classList.contains('placed')) {
       const type = this.draggedEl.dataset.type;
+      const u = snapAnchor(dropU, uHeightOf(type), alt);
       if (!this.canPlace(u, uHeightOf(type), this.draggedEl)) {
         Toast.show(`Can't move here — needs ${uHeightOf(type)}U of free space.`);
         return;
       }
-      slot.appendChild(this.draggedEl);
+      this.slot(u).appendChild(this.draggedEl);
       this.rebindPorts(this.draggedEl, u);
       this.commit();
     }
   },
 
-  placeType(type, u) {
+  placeType(type, dropU, alt = false) {
     const uHeight = uHeightOf(type);
+    const u = snapAnchor(dropU, uHeight, alt);
     if (!this.canPlace(u, uHeight)) {
       Toast.show(`Can't place — needs ${uHeight}U of free space here.`);
       return;
     }
-    const slot = this.slot(u);
-    slot.appendChild(createDevice(type, u));
+    this.slot(u).appendChild(createDevice(type, u));
     this.placingType = null;
     this.updatePlacementUi();
     this.commit();
@@ -585,17 +597,17 @@ export const App = {
 
   canPlace(targetU, uHeight, ignore = null) {
     const ignores = ignore ? (Array.isArray(ignore) ? ignore : [ignore]) : [];
-    targetU = parseInt(targetU, 10);
-    for (let i = 0; i < uHeight; i++) {
+    targetU = Number(targetU);
+    for (let i = 0; i < uHeight; i += STEP) {
       const u = targetU - i;
-      if (u < 1 || u > this.maxU) return false;
+      if (u < STEP || u > this.maxU) return false;
       const slot = this.slot(u);
       if (!slot) return false;
       const dev = slot.querySelector('.device');
       if (dev && !ignores.includes(dev)) return false;
       const coveredBy = slot.getAttribute('data-occupied-by');
       if (coveredBy) {
-        const covering = this.slot(parseInt(coveredBy, 10))?.querySelector('.device');
+        const covering = this.slot(Number(coveredBy))?.querySelector('.device');
         if (!ignores.includes(covering)) return false;
       }
     }
@@ -640,22 +652,21 @@ export const App = {
     });
   },
 
-  moveSelected(direction) {
+  moveSelected(direction, alt = false) {
     const selected = this.selected();
     if (selected.length === 0) return;
+    const delta = direction * moveStep(alt);
     // Every device must fit at its shifted position, ignoring the moving set.
-    const ok = selected.every((d) =>
-      this.canPlace(parseInt(d.parentElement.dataset.u, 10) + direction, uHeightOf(d.dataset.type), selected)
-    );
+    const ok = selected.every((d) => this.canPlace(Number(d.parentElement.dataset.u) + delta, uHeightOf(d.dataset.type), selected));
     if (!ok) return;
     // Move in travel order so appends never land on an occupied slot mid-shift.
     const ordered = selected.sort((a, b) => {
-      const ua = parseInt(a.parentElement.dataset.u, 10);
-      const ub = parseInt(b.parentElement.dataset.u, 10);
+      const ua = Number(a.parentElement.dataset.u);
+      const ub = Number(b.parentElement.dataset.u);
       return direction > 0 ? ub - ua : ua - ub;
     });
     ordered.forEach((d) => {
-      const nu = parseInt(d.parentElement.dataset.u, 10) + direction;
+      const nu = Number(d.parentElement.dataset.u) + delta;
       this.slot(nu).appendChild(d);
       this.rebindPorts(d, nu);
       this.updateOccupiedSlots();
@@ -684,7 +695,8 @@ export const App = {
   },
 
   findFreeSlot(uHeight) {
-    for (let u = uHeight; u <= this.maxU; u++) {
+    const step = Number.isInteger(uHeight) ? 1 : STEP;
+    for (let u = uHeight; u <= this.maxU; u += step) {
       if (this.canPlace(u, uHeight)) return u;
     }
     return null;
@@ -693,7 +705,7 @@ export const App = {
   rebindPorts(device, u) {
     device.querySelectorAll('.port-rj45').forEach((port, idx) => {
       const oldId = port.dataset.portId;
-      const newId = `u${u}-p${idx}`;
+      const newId = makePortId(u, idx);
       port.dataset.portId = newId;
       this.connections.forEach((c) => {
         if (c.from === oldId) c.from = newId;
@@ -706,14 +718,14 @@ export const App = {
 
   /** Snapshot the current DOM + connections into a plain state object. */
   getState() {
-    const rack = [];
-    for (let u = 1; u <= this.maxU; u++) {
-      const dev = this.slot(u)?.querySelector('.device');
-      if (dev) {
-        const labels = [...dev.querySelectorAll('.port-label')].map((i) => i.value);
-        rack.push({ u, type: dev.dataset.type, labels });
-      }
-    }
+    // Read devices straight from the DOM so half-U anchors are captured too.
+    const rack = [...this.$slots.querySelectorAll('.slot > .device.placed')]
+      .map((dev) => ({
+        u: Number(dev.parentElement.dataset.u),
+        type: dev.dataset.type,
+        labels: [...dev.querySelectorAll('.port-label')].map((i) => i.value),
+      }))
+      .sort((a, b) => b.u - a.u);
     return {
       maxU: this.maxU,
       rack,
@@ -803,15 +815,15 @@ export const App = {
       slot.classList.remove('slot-blocked');
       const bay = slot.querySelector('.slot-bay');
       if (bay && !slot.querySelector('.device')) {
-        bay.textContent = `U${slot.dataset.u}`;
+        bay.textContent = Number.isInteger(Number(slot.dataset.u)) ? `U${slot.dataset.u}` : '';
         bay.style.display = 'flex';
       }
     });
 
     document.querySelectorAll('.slot .device.placed').forEach((dev) => {
-      const u = parseInt(dev.parentElement.dataset.u, 10);
+      const u = Number(dev.parentElement.dataset.u);
       const uHeight = uHeightOf(dev.dataset.type);
-      for (let i = 1; i < uHeight; i++) {
+      for (let i = STEP; i < uHeight; i += STEP) {
         const covered = this.slot(u - i);
         if (!covered) continue;
         covered.setAttribute('data-occupied-by', String(u));
@@ -858,8 +870,8 @@ export const App = {
       const a = getPortCenterInSVG(svg, portA);
       const b = getPortCenterInSVG(svg, portB);
 
-      const uA = parseInt(c.from.split('-')[0].slice(1), 10);
-      const uB = parseInt(c.to.split('-')[0].slice(1), 10);
+      const uA = portU(c.from);
+      const uB = portU(c.to);
       let routeY = null;
       organizers.forEach((uOrg) => {
         if ((uA > uOrg && uOrg > uB) || (uB > uOrg && uOrg > uA)) {
@@ -914,37 +926,58 @@ export const App = {
 
   updateThermalMap() {
     document.querySelectorAll('.slot').forEach((s) => s.classList.remove('thermal-hotspot'));
-    for (let u = 1; u < this.maxU; u++) {
-      const dev1 = this.slot(u)?.querySelector('.device');
-      const dev2 = this.slot(u + 1)?.querySelector('.device');
-      if (!dev1 || !dev2) continue;
-      const h1 = DEVICE_TYPES[dev1.dataset.type].heatWeight ?? 0;
-      const h2 = DEVICE_TYPES[dev2.dataset.type].heatWeight ?? 0;
-      if (h1 + h2 >= 6) {
-        this.slot(u).classList.add('thermal-hotspot');
-        this.slot(u + 1).classList.add('thermal-hotspot');
+    // Two vertically touching devices whose combined heat is high form a hot spot.
+    const devices = [...document.querySelectorAll('.slot .device.placed')].map((dev) => {
+      const u = Number(dev.parentElement.dataset.u);
+      const h = uHeightOf(dev.dataset.type);
+      return { dev, u, bottom: u - h + STEP, heat: DEVICE_TYPES[dev.dataset.type].heatWeight ?? 0 };
+    });
+    for (let i = 0; i < devices.length; i++) {
+      for (let j = i + 1; j < devices.length; j++) {
+        const a = devices[i];
+        const b = devices[j];
+        const touching = a.bottom - STEP === b.u || b.bottom - STEP === a.u;
+        if (touching && a.heat + b.heat >= 6) {
+          a.dev.parentElement.classList.add('thermal-hotspot');
+          b.dev.parentElement.classList.add('thermal-hotspot');
+        }
       }
     }
   },
 
   updateReport() {
     this.$report.innerHTML = '';
-    for (let u = this.maxU; u >= 1; u--) {
-      const slot = this.slot(u);
-      const device = slot?.querySelector('.device');
-      const coveredBy = slot?.getAttribute('data-occupied-by');
+    // Walk half-rows top-down: list device anchors, and collapse runs of empty
+    // half-rows into a single "free" entry.
+    let emptyRun = 0;
+    const flushEmpty = () => {
+      if (emptyRun === 0) return;
       const item = document.createElement('div');
       item.className = 'report-item';
       item.setAttribute('role', 'listitem');
-      if (device) {
-        item.classList.add('occupied');
-        item.innerHTML = `<span class="u-badge">U${u}</span><span class="text-blue">${DEVICE_TYPES[device.dataset.type].name}</span>`;
-      } else if (coveredBy) {
-        item.innerHTML = `<span class="u-badge text-muted">U${u}</span><span class="text-muted">↳ covered by U${coveredBy}</span>`;
-      } else {
-        item.innerHTML = `<span class="u-badge text-muted">U${u}</span><span class="text-muted">empty</span>`;
-      }
+      item.innerHTML = `<span class="u-badge text-muted">—</span><span class="text-muted">${emptyRun * STEP}U free</span>`;
       this.$report.appendChild(item);
+      emptyRun = 0;
+    };
+
+    for (const u of halfRows(this.maxU)) {
+      const slot = this.slot(u);
+      const device = slot?.querySelector('.device');
+      const coveredBy = slot?.getAttribute('data-occupied-by');
+      if (device) {
+        flushEmpty();
+        const item = document.createElement('div');
+        item.className = 'report-item occupied';
+        item.setAttribute('role', 'listitem');
+        item.innerHTML = `<span class="u-badge">U${u}</span><span class="text-blue">${DEVICE_TYPES[device.dataset.type].name}</span>`;
+        this.$report.appendChild(item);
+      } else if (!coveredBy) {
+        emptyRun += 1;
+      }
+    }
+    flushEmpty();
+    if (!this.$report.children.length) {
+      this.$report.innerHTML = '<div class="report-item"><span class="text-muted">Empty rack</span></div>';
     }
   },
 
@@ -1114,6 +1147,41 @@ export const App = {
     fileInput.addEventListener('change', (e) => this.importJSON(e.target.files[0]));
 
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
+
+    // Reveal the fine (0.5U) grid while Alt is held.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Alt') {
+        this._altHeld = true;
+        this.refreshHalfGrid();
+      }
+    });
+    const clearAlt = () => {
+      this._altHeld = false;
+      this.refreshHalfGrid();
+    };
+    document.addEventListener('keyup', (e) => e.key === 'Alt' && clearAlt());
+    window.addEventListener('blur', clearAlt);
+  },
+
+  /**
+   * Show the fine (0.5U) grid when it's relevant: Alt held, or a sub-1U device
+   * is being dragged or is armed for tap-to-place. Otherwise the rack reads as
+   * a clean 1U grid.
+   */
+  refreshHalfGrid() {
+    const placingFractional = this.placingType && !Number.isInteger(uHeightOf(this.placingType));
+    const show = this._altHeld || this._fractionalDrag || placingFractional;
+    this.$slots.classList.toggle('show-half', Boolean(show));
+  },
+
+  beginDrag(type) {
+    this._fractionalDrag = !Number.isInteger(uHeightOf(type));
+    this.refreshHalfGrid();
+  },
+
+  endDrag() {
+    this._fractionalDrag = false;
+    this.refreshHalfGrid();
   },
 
   handleKeydown(e) {
@@ -1146,10 +1214,10 @@ export const App = {
       }
     } else if (e.key === 'ArrowUp' && this.selected().length) {
       e.preventDefault();
-      this.moveSelected(1);
+      this.moveSelected(1, e.altKey);
     } else if (e.key === 'ArrowDown' && this.selected().length) {
       e.preventDefault();
-      this.moveSelected(-1);
+      this.moveSelected(-1, e.altKey);
     } else if (e.key === 'Escape') {
       if (this.placingType) {
         this.placingType = null;

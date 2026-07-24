@@ -144,9 +144,8 @@ svg path.cable-path:hover {
 .slot {
   position: relative;
   width: 320px;
-  height: 48px;
+  height: 22px; /* half-row; a 1U device spans two of these + the 4px gap = 48px */
   background: rgba(30, 41, 59, 0.4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   transition: background-color 0.3s;
 }
 .slot.slot-blocked {
@@ -206,9 +205,11 @@ svg path.cable-path:hover {
 }
 
 .slot-bay {
-  width: 280px;
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
   height: 100%;
-  margin-left: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -218,8 +219,29 @@ svg path.cable-path:hover {
   font: 10px/1 monospace;
   letter-spacing: 1px;
   z-index: 2;
-  transition: all 0.2s ease;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
 }
+/* Default view reads as a 1U grid: each whole-U bay spans its half-row + the
+   one below (2×22px + the 4px gap = 48px); the .5-row bays stay hidden. */
+.slot:not(.slot--half) .slot-bay {
+  height: calc(200% + 4px);
+}
+.slot--half .slot-bay {
+  display: none;
+}
+/* Fine grid (Alt held, or dragging a 0.5U part): reveal each half-row cell. */
+.slots-container.show-half .slot:not(.slot--half) .slot-bay {
+  height: 100%;
+}
+.slots-container.show-half .slot--half .slot-bay {
+  display: flex;
+}
+.slots-container.show-half .slot--half:not(.slot-blocked) .slot-bay {
+  border-color: rgba(0, 85, 255, 0.5);
+}
+
 .slot.drag-over .slot-bay,
 .slots-container.picking .slot:not(.slot-blocked) .slot-bay {
   border-color: var(--accent-blue);

@@ -2,6 +2,7 @@ import { DEVICE_TYPES } from '../data/devices.js';
 import { rackByU, classifyConnection, portTypeAt } from '../render/cableClassify.js';
 import { computePoe } from './poe.js';
 import { computePdu } from './pdu.js';
+import { parsePortId } from '../utils/ports.js';
 
 /**
  * Static design checks over a rack state. Pure — takes a snapshot, returns a
@@ -97,9 +98,7 @@ export function validateRack(state) {
 }
 
 function fmtPort(map, portId) {
-  const [uPart, pPart] = portId.split('-');
-  const u = parseInt(uPart.slice(1), 10);
-  const idx = parseInt(pPart.slice(1), 10);
+  const { u, idx } = parsePortId(portId);
   const name = DEVICE_TYPES[map.get(u)]?.name ?? 'Unknown';
   return `${name} U${u}·P${idx + 1}`;
 }

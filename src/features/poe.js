@@ -1,5 +1,6 @@
 import { DEVICE_TYPES } from '../data/devices.js';
 import { rackByU } from '../render/cableClassify.js';
+import { parsePortId } from '../utils/ports.js';
 
 /**
  * Connection-aware PoE accounting. For each PoE-sourcing switch, sum the draw of
@@ -27,8 +28,7 @@ export function computePoe(state) {
     for (let idx = 0; idx < ports.length; idx++) {
       const other = otherEnd(state.connections, `u${d.u}-p${idx}`);
       if (!other) continue;
-      const otherU = parseInt(other.split('-')[0].slice(1), 10);
-      const otherIdx = parseInt(other.split('-')[1].slice(1), 10);
+      const { u: otherU, idx: otherIdx } = parsePortId(other);
       const otherPort = DEVICE_TYPES[map.get(otherU)]?.ports[otherIdx];
       const src = sources.get(otherU);
       if (src && otherPort && otherPort.includes('poe')) {
