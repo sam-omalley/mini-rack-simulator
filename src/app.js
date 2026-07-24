@@ -24,6 +24,13 @@ const MAX_HISTORY = 100;
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 1.4;
 
+// Momentary fine-placement modifier read from an event. Hold-to-reveal was
+// dropped: browsers (Firefox especially) deliver Alt/Shift keydown/keyup
+// unreliably, so it stuck or lagged. The fine grid is now an explicit toggle
+// (see `_fineMode`); these modifiers still give a per-event snap override,
+// which is read at event time and so is always reliable.
+const fineMode = (e) => Boolean(e && (e.shiftKey || e.altKey));
+
 export const App = {
   connections: [],
   maxU: 6,
@@ -31,6 +38,7 @@ export const App = {
   draggedEl: null,
   fromSidebar: false,
   placingType: null,
+  _fineMode: false, // sticky ½U grid toggle (button / "G")
   history: [],
   historyIndex: -1,
   redrawPending: false,
@@ -543,7 +551,7 @@ export const App = {
       if (!slot) return;
       e.preventDefault();
       slot.classList.remove('drag-over');
-      this.handleDrop(slot, e.altKey);
+      this.handleDrop(slot, this.fine(e));
     });
 
     // Tap-to-place, device select, duplicate, delete.
@@ -567,7 +575,7 @@ export const App = {
       }
       const slot = e.target.closest('.slot');
       if (this.placingType && slot && !e.target.closest('.device')) {
-        this.placeType(this.placingType, Number(slot.dataset.u), e.altKey);
+        this.placeType(this.placingType, Number(slot.dataset.u), this.fine(e));
         return;
       }
       const device = e.target.closest('.device.placed');
@@ -641,13 +649,13 @@ export const App = {
     this.$svg.classList.toggle('focusing', any);
   },
 
-  handleDrop(slot, alt = false) {
+  handleDrop(slot, fine = false) {
     const dropU = Number(slot.dataset.u);
     if (this.fromSidebar && this.draggedEl) {
-      this.placeType(this.draggedEl.dataset.deviceType, dropU, alt);
+      this.placeType(this.draggedEl.dataset.deviceType, dropU, fine);
     } else if (this.draggedEl?.classList.contains('placed')) {
       const type = this.draggedEl.dataset.type;
-      const u = snapAnchor(dropU, uHeightOf(type), alt);
+      const u = snapAnchor(dropU, uHeightOf(type), fine);
       if (!this.canPlace(u, uHeightOf(type), this.draggedEl)) {
         Toast.show(`Can't move here — needs ${uHeightOf(type)}U of free space.`);
         return;
@@ -658,9 +666,9 @@ export const App = {
     }
   },
 
-  placeType(type, dropU, alt = false) {
+  placeType(type, dropU, fine = false) {
     const uHeight = uHeightOf(type);
-    const u = snapAnchor(dropU, uHeight, alt);
+    const u = snapAnchor(dropU, uHeight, fine);
     if (!this.canPlace(u, uHeight)) {
       Toast.show(`Can't place — needs ${uHeight}U of free space here.`);
       return;
@@ -728,10 +736,10 @@ export const App = {
     });
   },
 
-  moveSelected(direction, alt = false) {
+  moveSelected(direction, fine = false) {
     const selected = this.selected();
     if (selected.length === 0) return;
-    const delta = direction * moveStep(alt);
+    const delta = direction * moveStep(fine);
     // Every device must fit at its shifted position, ignoring the moving set.
     const ok = selected.every((d) => this.canPlace(Number(d.parentElement.dataset.u) + delta, uHeightOf(d.dataset.type), selected));
     if (!ok) return;
@@ -1237,42 +1245,34 @@ export const App = {
 
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
 
-    // Reveal the fine (0.5U) grid while Alt is held.
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Alt') {
-        // Firefox focuses the menu bar on a bare Alt, which fires window blur
-        // (clearing the grid) and steals focus. Suppress that default so the
-        // hold-Alt reveal actually sticks; Alt+key combos are unaffected.
-        e.preventDefault();
-        this._altHeld = true;
-        this.refreshHalfGrid();
-      }
-    });
-    const clearAlt = () => {
-      this._altHeld = false;
-      this.refreshHalfGrid();
-    };
-    document.addEventListener('keyup', (e) => e.key === 'Alt' && clearAlt());
-    window.addEventListener('blur', clearAlt);
-    // Robust fallback: keep the reveal in sync with the live Alt state as the
-    // pointer moves over the rack, in case a key event was missed (e.g. focus
-    // was elsewhere when Alt was pressed).
-    this.$slots.addEventListener('pointermove', (e) => {
-      if (e.altKey !== this._altHeld) {
-        this._altHeld = e.altKey;
-        this.refreshHalfGrid();
-      }
-    });
+    // The fine (0.5U) grid is an explicit toggle — reliable in every browser,
+    // unlike hold-to-reveal which browsers deliver too unreliably to trust.
+    document.getElementById('btn-fine-grid').addEventListener('click', () => this.toggleFineGrid());
+  },
+
+  /** Whether a placement/drag/move should snap to the 0.5U grid: the sticky
+   *  toggle, or a per-event Shift/Alt override (read at event time). */
+  fine(e) {
+    return this._fineMode || fineMode(e);
+  },
+
+  /** Toggle the sticky ½U grid (button / "G"). */
+  toggleFineGrid(on = !this._fineMode) {
+    this._fineMode = on;
+    const btn = document.getElementById('btn-fine-grid');
+    btn.classList.toggle('btn-active', on);
+    btn.setAttribute('aria-pressed', String(on));
+    this.refreshHalfGrid();
   },
 
   /**
-   * Show the fine (0.5U) grid when it's relevant: Alt held, or a sub-1U device
-   * is being dragged or is armed for tap-to-place. Otherwise the rack reads as
-   * a clean 1U grid.
+   * Show the fine (0.5U) grid when it's relevant: the toggle is on, or a sub-1U
+   * device is being dragged or is armed for tap-to-place. Otherwise the rack
+   * reads as a clean 1U grid.
    */
   refreshHalfGrid() {
     const placingFractional = this.placingType && !Number.isInteger(uHeightOf(this.placingType));
-    const show = this._altHeld || this._fractionalDrag || placingFractional;
+    const show = this._fineMode || this._fractionalDrag || placingFractional;
     this.$slots.classList.toggle('show-half', Boolean(show));
   },
 
@@ -1309,6 +1309,12 @@ export const App = {
     }
     if (editing) return;
 
+    if (e.key.toLowerCase() === 'g') {
+      e.preventDefault();
+      this.toggleFineGrid();
+      return;
+    }
+
     if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.dataset?.action === 'fill-bay') {
       e.preventDefault();
       this.openBayMenu(document.activeElement, null);
@@ -1322,10 +1328,10 @@ export const App = {
       }
     } else if (e.key === 'ArrowUp' && this.selected().length) {
       e.preventDefault();
-      this.moveSelected(1, e.altKey);
+      this.moveSelected(1, this.fine(e));
     } else if (e.key === 'ArrowDown' && this.selected().length) {
       e.preventDefault();
-      this.moveSelected(-1, e.altKey);
+      this.moveSelected(-1, this.fine(e));
     } else if (e.key === 'Escape') {
       if (this.placingType) {
         this.placingType = null;

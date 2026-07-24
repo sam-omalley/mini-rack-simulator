@@ -83,6 +83,15 @@
           <button id="btn-face" class="btn" type="button" aria-pressed="false" title="Flip between the front (ports) and rear (power) side">
             🔀 Front
           </button>
+          <button
+            id="btn-fine-grid"
+            class="btn"
+            type="button"
+            aria-pressed="false"
+            title="Toggle the fine ½U grid — snap placement to half-units (G)"
+          >
+            ▦ ½U grid
+          </button>
         </div>
         <div class="rack-wrapper-container">
           <div class="rack-wrapper" id="rack-wrapper">
@@ -275,7 +284,11 @@
           </div>
           <div>
             <dt>Move selected</dt>
-            <dd><kbd>↑</kbd> <kbd>↓</kbd></dd>
+            <dd><kbd>↑</kbd> <kbd>↓</kbd> · hold <kbd>Shift</kbd> for ½U steps</dd>
+          </div>
+          <div>
+            <dt>Fine ½U grid</dt>
+            <dd>Toggle with <kbd>G</kbd> or the <strong>½U grid</strong> button · or hold <kbd>Shift</kbd> while placing/dragging</dd>
           </div>
           <div>
             <dt>Duplicate selected</dt>
