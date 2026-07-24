@@ -14,6 +14,8 @@
  *   watts       Typical power draw of the device itself (W).
  *   poeBudget   PoE power the device can supply to attached gear (W).
  *   heatWeight  Relative heat output, used for the thermal hot-spot map (0–5).
+ *   slots       Carrier descriptor: { count, accepts, layout }. Marks the device
+ *               as a container whose bays hold SUBCOMPONENTS of class `accepts`.
  */
 export const DEVICE_TYPES = {
   blank: { name: '1U White Blank Panel', ports: [], uHeight: 1, watts: 0, poeBudget: 0, heatWeight: 0 },
@@ -245,6 +247,39 @@ export const DEVICE_TYPES = {
     poeBudget: 0,
     heatWeight: 3,
   },
+  'mikrotik-crs112': {
+    name: 'MikroTik CRS112-8P-4S',
+    ports: [...Array(8).fill('poe'), 'sfp', 'sfp', 'sfp', 'sfp'],
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 240,
+    isGrid: true,
+    watts: 20,
+    poeBudget: 60,
+    heatWeight: 3,
+  },
+  'mikrotik-css318': {
+    name: 'MikroTik CSS318-16G-2S+',
+    ports: [...Array(16).fill('gbe'), 'sfp', 'sfp'],
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 240,
+    isGrid: true,
+    watts: 20,
+    poeBudget: 0,
+    heatWeight: 3,
+  },
+  'intellinet-16': {
+    name: 'Intellinet 16-Port Gigabit',
+    ports: Array(16).fill('gbe'),
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 240,
+    isGrid: true,
+    watts: 12,
+    poeBudget: 0,
+    heatWeight: 2,
+  },
   'synology-nas-2bay': {
     name: 'Synology 2-bay NAS (shelf)',
     ports: ['2.5g', 'gbe'],
@@ -271,6 +306,19 @@ export const DEVICE_TYPES = {
     poeBudget: 0,
     heatWeight: 0,
   },
+  'netio-powerpdu-4c': {
+    name: 'NETIO PowerPDU 4C (metered)',
+    ports: [],
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 200,
+    layout: 'pdu',
+    outlets: 4,
+    capacity: 900,
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
   'ups-1u': {
     name: '1U UPS (10")',
     ports: [],
@@ -287,6 +335,27 @@ export const DEVICE_TYPES = {
   },
   'shelf-1u': { name: '1U Vented Shelf', ports: [], uHeight: 1, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
 
+  // Carriers: containers whose `slots` hold sub-components (see SUBCOMPONENTS).
+  // Bays are filled/emptied in place; the carrier itself has no faceplate ports.
+  'drive-cage-6': {
+    name: '6-Bay 2.5" Drive Cage',
+    ports: [],
+    uHeight: 1,
+    slots: { count: 6, accepts: 'drive', layout: 'bays' },
+    watts: 2,
+    poeBudget: 0,
+    heatWeight: 1,
+  },
+  'shelf-2slot': {
+    name: '2-Slot Compute Shelf',
+    ports: [],
+    uHeight: 1,
+    slots: { count: 2, accepts: 'compute', layout: 'shelf' },
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
+
   // Half-height (0.5U)
   'blank-half': { name: '0.5U Blank Panel', ports: [], uHeight: 0.5, watts: 0, poeBudget: 0, heatWeight: 0 },
   'shelf-half': { name: '0.5U Vented Shelf', ports: [], uHeight: 0.5, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
@@ -301,6 +370,40 @@ export const DEVICE_TYPES = {
     heatWeight: 1,
   },
 };
+
+/**
+ * Sub-components live INSIDE a carrier device's slots (a DEVICE_TYPES entry with
+ * a `slots` descriptor). They are never placed directly on the rack, so they are
+ * deliberately kept out of DEVICE_TYPES and CATEGORIES. In a placed rack item they
+ * appear as an optional `fills` array aligned to the carrier's slot count.
+ *   name        Label shown in the fill menu and BoM.
+ *   class       Slot category this fits — matches a carrier slot's `accepts`.
+ *   watts       Power draw added when fitted (W).
+ *   heatWeight  Heat added when fitted (0–5, same scale as DEVICE_TYPES).
+ *   capacityTB  Storage capacity for drives — informational, shown on the bay.
+ */
+export const SUBCOMPONENTS = {
+  'hdd-1tb': { name: '1 TB 2.5" HDD', class: 'drive', watts: 2, heatWeight: 1, capacityTB: 1 },
+  'hdd-2tb': { name: '2 TB 2.5" HDD', class: 'drive', watts: 2, heatWeight: 1, capacityTB: 2 },
+  'ssd-500gb': { name: '500 GB SSD', class: 'drive', watts: 1, heatWeight: 0, capacityTB: 0.5 },
+  'ssd-1tb': { name: '1 TB SSD', class: 'drive', watts: 1, heatWeight: 0, capacityTB: 1 },
+  'ssd-2tb': { name: '2 TB SSD', class: 'drive', watts: 1, heatWeight: 0, capacityTB: 2 },
+  'pi5-4gb': { name: 'Raspberry Pi 5 (4 GB)', class: 'compute', watts: 6, heatWeight: 2 },
+  'pi5-8gb': { name: 'Raspberry Pi 5 (8 GB)', class: 'compute', watts: 7, heatWeight: 2 },
+  'nuc-mini': { name: 'Mini PC (N100)', class: 'compute', watts: 15, heatWeight: 3 },
+};
+
+/** Sub-component spec lookup with a safe null. */
+export function subOf(key) {
+  return SUBCOMPONENTS[key] ?? null;
+}
+
+/** Sub-components whose `class` matches a carrier slot's `accepts`. */
+export function subsFor(accepts) {
+  return Object.entries(SUBCOMPONENTS)
+    .filter(([, s]) => s.class === accepts)
+    .map(([key, s]) => ({ key, ...s }));
+}
 
 /** Port metadata for tooltips. */
 export const PORT_SPECS = {
@@ -356,8 +459,9 @@ export const CATEGORIES = [
   { title: '🌐 Routers & Gateways', types: ['ucg-max', 'ucg-ultra', 'ucg-fiber', 'ux7'] },
   { title: '🍓 DeskPi & Displays', types: ['deskpi-dp0039', 'deskpi-dp0046', 'deskpi-dp0101', 'deskpi-dp0059', 'deskpi-dp0100'] },
   { title: '💻 Servers & Mini PCs', types: ['dell-optiplex-micro', 'synology-nas-2bay'] },
-  { title: '🌍 Other Vendors', types: ['mikrotik-crs310'] },
-  { title: '🔩 Power & Accessories', types: ['pdu-8', 'ups-1u', 'shelf-1u'] },
+  { title: '🧩 Carriers & Drives', types: ['drive-cage-6', 'shelf-2slot'] },
+  { title: '🌍 Other Vendors', types: ['mikrotik-crs310', 'mikrotik-crs112', 'mikrotik-css318', 'intellinet-16'] },
+  { title: '🔩 Power & Accessories', types: ['pdu-8', 'netio-powerpdu-4c', 'ups-1u', 'shelf-1u'] },
   { title: '📐 Half-Height (0.5U)', types: ['blank-half', 'shelf-half', 'pi-half'] },
 ];
 

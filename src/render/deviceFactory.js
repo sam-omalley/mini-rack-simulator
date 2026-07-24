@@ -1,4 +1,4 @@
-import { DEVICE_TYPES } from '../data/devices.js';
+import { DEVICE_TYPES, subOf } from '../data/devices.js';
 import { deviceHeightPx, previewHeightPx } from './grid.js';
 import { makePortId } from '../utils/ports.js';
 
@@ -31,7 +31,9 @@ export function createDevice(type, uSlot = null) {
 
   const body = el('div', 'device-body');
 
-  if (spec.bracket) {
+  if (spec.slots) {
+    body.appendChild(buildCarrier(spec, uSlot));
+  } else if (spec.bracket) {
     body.appendChild(buildBracket(type, spec, uSlot));
   } else {
     const ports = buildPorts(type, spec, uSlot);
@@ -122,6 +124,59 @@ function buildBracket(type, spec, uSlot) {
   }
 
   return bracket;
+}
+
+/* ------------------------------------------------------------- Carriers */
+
+/** Build the faceplate for a slotted carrier: a row of empty/fillable bays. */
+function buildCarrier(spec, uSlot) {
+  const carrier = el('div', `slot-carrier slot-carrier--${spec.slots.layout || 'bays'}`);
+  for (let i = 0; i < spec.slots.count; i++) {
+    carrier.appendChild(buildBay(i, null, uSlot));
+  }
+  return carrier;
+}
+
+/**
+ * Build one carrier bay. `fillKey` is a SUBCOMPONENTS key or null (empty).
+ * Exported so app.js can rebuild a single bay when the user changes its fill.
+ */
+export function buildBay(index, fillKey, uSlot = null) {
+  const bay = el('div', 'carrier-bay');
+  bay.dataset.bay = String(index);
+  if (uSlot) {
+    bay.tabIndex = 0;
+    bay.setAttribute('role', 'button');
+    bay.dataset.action = 'fill-bay';
+  }
+  applyBayFill(bay, fillKey);
+  return bay;
+}
+
+/** Set (or clear) a bay's fill in place: dataset, label, and styling. */
+export function applyBayFill(bay, fillKey) {
+  const sub = fillKey ? subOf(fillKey) : null;
+  if (sub) {
+    bay.dataset.fill = fillKey;
+    bay.classList.add('filled');
+    bay.innerHTML = `<span class="bay-fill">${escapeHtml(bayBadge(sub))}</span>`;
+    bay.setAttribute('aria-label', `${sub.name} — activate to change`);
+    bay.title = sub.name;
+  } else {
+    delete bay.dataset.fill;
+    bay.classList.remove('filled');
+    bay.innerHTML = '<span class="bay-empty" aria-hidden="true">+</span>';
+    bay.setAttribute('aria-label', 'Empty slot — activate to fit a component');
+    bay.title = 'Empty slot';
+  }
+}
+
+/** Compact label for a filled bay (full name stays in the tooltip/aria). */
+function bayBadge(sub) {
+  if (sub.capacityTB != null) {
+    return sub.capacityTB < 1 ? `${Math.round(sub.capacityTB * 1000)} GB` : `${sub.capacityTB} TB`;
+  }
+  return sub.name.replace(/^Raspberry /, '');
 }
 
 function buildPorts(type, spec, uSlot) {

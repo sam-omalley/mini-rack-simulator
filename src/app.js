@@ -1,7 +1,7 @@
-import { DEVICE_TYPES, PORT_SPECS, CATEGORIES, uHeightOf } from './data/devices.js';
+import { DEVICE_TYPES, PORT_SPECS, CATEGORIES, uHeightOf, subsFor } from './data/devices.js';
 import { CustomDevices } from './features/customDevices.js';
 import { TEMPLATES } from './data/templates.js';
-import { createDevice } from './render/deviceFactory.js';
+import { createDevice, applyBayFill } from './render/deviceFactory.js';
 import { computeMetrics } from './render/metrics.js';
 import { CableManager } from './render/cableManager.js';
 import { classifyConnection, rackByU } from './render/cableClassify.js';
@@ -352,6 +352,71 @@ export const App = {
     this.editingCable = null;
   },
 
+  /* ---------------------------------------------------- Carrier bay menu */
+
+  /** Open the fill menu for a carrier bay. `e` is the click event, or null for
+   *  keyboard activation (positions off the bay itself). */
+  openBayMenu(bay, e) {
+    const device = bay.closest('.device.placed');
+    const spec = DEVICE_TYPES[device?.dataset.type];
+    if (!spec?.slots) return;
+    this.editingBay = bay;
+    const menu = this.ensureBayMenu();
+    const current = bay.dataset.fill || '';
+    const opts = subsFor(spec.slots.accepts)
+      .map(
+        (o) =>
+          `<button type="button" class="bay-opt${o.key === current ? ' bay-opt--active' : ''}" data-fill="${o.key}">${escapeHtml(o.name)}</button>`
+      )
+      .join('');
+    menu.innerHTML =
+      `<div class="bay-menu-title">Fit component</div>${opts}` +
+      `<button type="button" class="bay-opt bay-opt--empty${current ? '' : ' bay-opt--active'}" data-fill="">Leave empty</button>`;
+
+    menu.hidden = false;
+    const rect = bay.getBoundingClientRect();
+    const px = e ? e.clientX : rect.left;
+    const py = e ? e.clientY + 8 : rect.bottom + 6;
+    const x = Math.min(px, window.innerWidth - menu.offsetWidth - 12);
+    const y = Math.min(py, window.innerHeight - menu.offsetHeight - 12);
+    menu.style.left = `${Math.max(12, x)}px`;
+    menu.style.top = `${Math.max(12, y)}px`;
+    menu.querySelector('.bay-opt--active')?.focus();
+  },
+
+  ensureBayMenu() {
+    if (this.$bayMenu) return this.$bayMenu;
+    const menu = document.createElement('div');
+    menu.className = 'bay-menu';
+    menu.id = 'bay-menu';
+    menu.hidden = true;
+    menu.addEventListener('click', (e) => {
+      const opt = e.target.closest('[data-fill]');
+      if (!opt || !this.editingBay) return;
+      applyBayFill(this.editingBay, opt.dataset.fill || null);
+      const focusTarget = this.editingBay;
+      this.closeBayMenu();
+      focusTarget.focus();
+      this.commit();
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!menu.hidden && !e.target.closest('#bay-menu') && !e.target.closest('[data-action="fill-bay"]')) {
+        this.closeBayMenu();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !menu.hidden) this.closeBayMenu();
+    });
+    document.body.appendChild(menu);
+    this.$bayMenu = menu;
+    return menu;
+  },
+
+  closeBayMenu() {
+    if (this.$bayMenu) this.$bayMenu.hidden = true;
+    this.editingBay = null;
+  },
+
   /* -------------------------------------------------- Custom device modal */
 
   setupDeviceModal() {
@@ -487,6 +552,12 @@ export const App = {
       if (dup) {
         this.selectDevice(dup.closest('.device'), false);
         this.duplicateSelected();
+        return;
+      }
+      const bay = e.target.closest('[data-action="fill-bay"]');
+      if (bay) {
+        e.stopPropagation();
+        this.openBayMenu(bay, e);
         return;
       }
       const slot = e.target.closest('.slot');
@@ -685,8 +756,10 @@ export const App = {
       if (u == null) return;
       const dev = createDevice(type, u);
       const labels = [...d.querySelectorAll('.port-label')].map((i) => i.value);
+      const fills = [...d.querySelectorAll('.carrier-bay')].map((b) => b.dataset.fill || null);
       this.slot(u).appendChild(dev);
       dev.querySelectorAll('.port-label').forEach((inp, idx) => (inp.value = labels[idx] ?? ''));
+      dev.querySelectorAll('.carrier-bay').forEach((bay, idx) => applyBayFill(bay, fills[idx] || null));
       this.updateOccupiedSlots();
       placed += 1;
     });
@@ -720,11 +793,16 @@ export const App = {
   getState() {
     // Read devices straight from the DOM so half-U anchors are captured too.
     const rack = [...this.$slots.querySelectorAll('.slot > .device.placed')]
-      .map((dev) => ({
-        u: Number(dev.parentElement.dataset.u),
-        type: dev.dataset.type,
-        labels: [...dev.querySelectorAll('.port-label')].map((i) => i.value),
-      }))
+      .map((dev) => {
+        const item = {
+          u: Number(dev.parentElement.dataset.u),
+          type: dev.dataset.type,
+          labels: [...dev.querySelectorAll('.port-label')].map((i) => i.value),
+        };
+        const bays = dev.querySelectorAll('.carrier-bay');
+        if (bays.length) item.fills = [...bays].map((b) => b.dataset.fill || null);
+        return item;
+      })
       .sort((a, b) => b.u - a.u);
     return {
       maxU: this.maxU,
@@ -751,6 +829,9 @@ export const App = {
       dev.querySelectorAll('.port-label').forEach((inp, idx) => {
         inp.value = item.labels?.[idx] ?? '';
       });
+      if (item.fills) {
+        dev.querySelectorAll('.carrier-bay').forEach((bay, idx) => applyBayFill(bay, item.fills[idx] || null));
+      }
     });
 
     this.connections = structuredClone(state.connections);
@@ -816,7 +897,10 @@ export const App = {
       const bay = slot.querySelector('.slot-bay');
       if (bay && !slot.querySelector('.device')) {
         bay.textContent = Number.isInteger(Number(slot.dataset.u)) ? `U${slot.dataset.u}` : '';
-        bay.style.display = 'flex';
+        // Clear the inline override so the stylesheet governs visibility: whole-U
+        // bays show, half-U bays stay hidden unless the fine grid (.show-half) is
+        // active. Forcing 'flex' here would beat that CSS and reveal the .5 rows.
+        bay.style.display = '';
       }
     });
 
@@ -1206,6 +1290,12 @@ export const App = {
       return;
     }
     if (editing) return;
+
+    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.dataset?.action === 'fill-bay') {
+      e.preventDefault();
+      this.openBayMenu(document.activeElement, null);
+      return;
+    }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (this.selected().length) {

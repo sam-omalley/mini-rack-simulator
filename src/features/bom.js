@@ -1,4 +1,4 @@
-import { DEVICE_TYPES } from '../data/devices.js';
+import { DEVICE_TYPES, subOf } from '../data/devices.js';
 import { countCables, CABLE_LABELS } from '../render/cableClassify.js';
 import { toCsv } from '../utils/csv.js';
 
@@ -11,31 +11,40 @@ import { toCsv } from '../utils/csv.js';
  */
 export function computeBom(state, priceFn = null) {
   const byType = new Map();
-  for (const { type } of state.rack) {
+  const bySub = new Map();
+  for (const { type, fills } of state.rack) {
     const spec = DEVICE_TYPES[type];
     if (!spec) continue;
     const entry = byType.get(type) || { type, name: spec.name, uEach: spec.uHeight ?? 1, qty: 0 };
     entry.qty += 1;
     byType.set(type, entry);
+
+    // Fitted sub-components become their own line items, keyed by sub-type, so a
+    // future purchase layer can map them to a product without reshaping this.
+    for (const key of fills ?? []) {
+      const sub = key && subOf(key);
+      if (!sub) continue;
+      const se = bySub.get(key) || { type: key, name: sub.name, uEach: 0, qty: 0, sub: true };
+      se.qty += 1;
+      bySub.set(key, se);
+    }
   }
 
-  const items = [...byType.values()]
-    .map((e) => {
-      const unitPrice = priceFn ? priceFn(e.type) : null;
-      return {
-        ...e,
-        uTotal: e.qty * e.uEach,
-        unitPrice,
-        subtotal: unitPrice != null ? unitPrice * e.qty : null,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const priceItem = (e) => {
+    const unitPrice = priceFn ? priceFn(e.type) : null;
+    return { ...e, uTotal: e.qty * e.uEach, unitPrice, subtotal: unitPrice != null ? unitPrice * e.qty : null };
+  };
+  const byName = (a, b) => a.name.localeCompare(b.name);
+
+  const devices = [...byType.values()].map(priceItem).sort(byName);
+  const subs = [...bySub.values()].map(priceItem).sort(byName);
+  const items = [...devices, ...subs];
 
   const priced = items.some((i) => i.unitPrice != null);
   return {
     items,
     deviceCount: state.rack.length,
-    totalU: items.reduce((sum, i) => sum + i.uTotal, 0),
+    totalU: devices.reduce((sum, i) => sum + i.uTotal, 0),
     cables: countCables(state),
     priced,
     totalCost: priced ? items.reduce((sum, i) => sum + (i.subtotal ?? 0), 0) : null,
@@ -51,7 +60,7 @@ export function bomToCsv(bom) {
   const rows = [head];
 
   bom.items.forEach((i) => {
-    const row = ['Device', i.name, i.qty, i.uEach, i.uTotal];
+    const row = [i.sub ? 'Component' : 'Device', i.name, i.qty, i.uEach, i.uTotal];
     if (priced) row.push(i.unitPrice ?? '', i.subtotal ?? '');
     rows.push(row);
   });

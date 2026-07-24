@@ -26,6 +26,31 @@ describe('computeBom', () => {
     expect(bom.priced).toBe(true);
     expect(bom.totalCost).toBe(20);
   });
+
+  it('lists carrier sub-components as their own line items across carriers', () => {
+    const bom = computeBom({
+      rack: [
+        { u: 1, type: 'drive-cage-6', fills: ['hdd-2tb', 'hdd-2tb', 'ssd-1tb', null, null, null] },
+        { u: 2, type: 'drive-cage-6', fills: ['hdd-2tb', null, null, null, null, null] },
+      ],
+      connections: [],
+    });
+    expect(bom.deviceCount).toBe(2); // carriers only
+    const hdd = bom.items.find((i) => i.type === 'hdd-2tb');
+    expect(hdd).toMatchObject({ qty: 3, sub: true, uEach: 0 });
+    expect(bom.items.find((i) => i.type === 'ssd-1tb').qty).toBe(1);
+    // Sub-components do not inflate rack U.
+    expect(bom.totalU).toBe(2);
+  });
+
+  it('prices sub-components into the total', () => {
+    const price = { 'drive-cage-6': 35, 'hdd-2tb': 65 };
+    const bom = computeBom(
+      { rack: [{ u: 1, type: 'drive-cage-6', fills: ['hdd-2tb', 'hdd-2tb', null, null, null, null] }], connections: [] },
+      (t) => price[t] ?? null
+    );
+    expect(bom.totalCost).toBe(35 + 65 * 2);
+  });
 });
 
 describe('computePoe', () => {

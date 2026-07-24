@@ -25,6 +25,20 @@
     "deskpi-dp0046": 60,
     "deskpi-dp0101": 70,
     "deskpi-dp0059": 90,
-    "deskpi-dp0100": 110
+    "deskpi-dp0100": 110,
+    "mikrotik-crs112": 145,
+    "mikrotik-css318": 119,
+    "intellinet-16": 60,
+    "netio-powerpdu-4c": 279,
+    "drive-cage-6": 35,
+    "shelf-2slot": 25,
+    "hdd-1tb": 45,
+    "hdd-2tb": 65,
+    "ssd-500gb": 40,
+    "ssd-1tb": 70,
+    "ssd-2tb": 120,
+    "pi5-4gb": 60,
+    "pi5-8gb": 80,
+    "nuc-mini": 150
   }
 }
