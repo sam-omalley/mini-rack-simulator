@@ -48,8 +48,10 @@ export const DEVICE_TYPES = {
   'mikrotik-crs310': { name: 'MikroTik CRS310-8G+2S+', ports: [...Array(8).fill('2.5g'), 'sfp', 'sfp'], uHeight: 1, bracket: true, bracketWidth: 220, watts: 18, poeBudget: 0, heatWeight: 3 },
   'synology-nas-2bay': { name: 'Synology 2-bay NAS (shelf)', ports: ['2.5g', 'gbe'], uHeight: 2, bracket: true, bracketWidth: 200, watts: 30, poeBudget: 0, heatWeight: 3 },
 
-  // Power & accessories
-  'pdu-8': { name: '8-Outlet PDU (10")', ports: [], uHeight: 1, bracket: true, bracketWidth: 250, layout: 'pdu', outlets: 8, watts: 0, poeBudget: 0, heatWeight: 0 },
+  // Power & accessories. `capacity` = watt rating the source can supply;
+  // `outlets` = how many devices it can power; `batteryWh` = UPS runtime energy.
+  'pdu-8': { name: '8-Outlet PDU (10")', ports: [], uHeight: 1, bracket: true, bracketWidth: 250, layout: 'pdu', outlets: 8, capacity: 1200, watts: 0, poeBudget: 0, heatWeight: 0 },
+  'ups-1u': { name: '1U UPS (10")', ports: [], uHeight: 1, bracket: true, bracketWidth: 250, layout: 'pdu', outlets: 4, capacity: 500, batteryWh: 400, watts: 0, poeBudget: 0, heatWeight: 1 },
   'shelf-1u': { name: '1U Vented Shelf', ports: [], uHeight: 1, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
 };
 
@@ -98,7 +100,7 @@ export const CATEGORIES = [
   { title: '🍓 DeskPi & Displays', types: ['deskpi-dp0039', 'deskpi-dp0046', 'deskpi-dp0101', 'deskpi-dp0059', 'deskpi-dp0100'] },
   { title: '💻 Servers & Mini PCs', types: ['dell-optiplex-micro', 'synology-nas-2bay'] },
   { title: '🌍 Other Vendors', types: ['mikrotik-crs310'] },
-  { title: '🔩 Power & Accessories', types: ['pdu-8', 'shelf-1u'] },
+  { title: '🔩 Power & Accessories', types: ['pdu-8', 'ups-1u', 'shelf-1u'] },
 ];
 
 /** Convenience: uHeight with a safe default. */

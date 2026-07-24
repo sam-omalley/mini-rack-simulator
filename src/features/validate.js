@@ -1,6 +1,7 @@
 import { DEVICE_TYPES } from '../data/devices.js';
 import { rackByU, classifyConnection, portTypeAt } from '../render/cableClassify.js';
 import { computePoe } from './poe.js';
+import { computePdu } from './pdu.js';
 
 /**
  * Static design checks over a rack state. Pure — takes a snapshot, returns a
@@ -71,6 +72,17 @@ export function validateRack(state) {
       warnings.push({ severity: 'error', code: 'poe-over', message: `${s.name} (U${s.u}) PoE over budget: ${s.load} W of ${s.budget} W.` });
     }
   });
+
+  // 4. PDU capacity / outlet checks (only when a power source is placed).
+  const pdu = computePdu(state);
+  if (pdu.hasSource) {
+    if (pdu.capacityOver) {
+      warnings.push({ severity: 'error', code: 'pdu-capacity', message: `Rack draw (${pdu.load} W) exceeds PDU capacity (${pdu.capacity} W).` });
+    }
+    if (pdu.outletsOver) {
+      warnings.push({ severity: 'warn', code: 'pdu-outlets', message: `Not enough PDU outlets: ${pdu.outletsNeeded} needed, ${pdu.outletsAvail} available.` });
+    }
+  }
 
   const order = { error: 0, warn: 1, info: 2 };
   return warnings.sort((a, b) => order[a.severity] - order[b.severity]);

@@ -10,6 +10,7 @@ import { computeSchedule, scheduleToCsv } from './features/cableSchedule.js';
 import { Pricing, priceFn } from './features/pricing.js';
 import { validateRack } from './features/validate.js';
 import { computePoe } from './features/poe.js';
+import { computePdu } from './features/pdu.js';
 import { getPortCenterInSVG, cablePath } from './utils/geometry.js';
 import { Tooltip } from './ui/tooltip.js';
 import { Toast } from './ui/toast.js';
@@ -892,6 +893,13 @@ export const App = {
       )
       .join('');
 
+    const pdu = computePdu(state);
+    const pduRows = pdu.hasSource
+      ? `${metricRow('PDU outlets', `${pdu.outletsNeeded} / ${pdu.outletsAvail}`, pdu.outletsOver ? 'var(--accent-red)' : undefined)}
+         ${metricRow('PDU capacity', `${pdu.load} / ${pdu.capacity} W`, pdu.capacityOver ? 'var(--accent-red)' : undefined)}
+         ${pdu.runtimeMin != null ? metricRow('Est. UPS runtime', `${pdu.runtimeMin} min`) : ''}`
+      : '';
+
     this.$power.innerHTML = `
       ${metricRow('Devices', m.deviceCount)}
       ${metricRow('Units used', `${m.usedU} / ${m.maxU} U`)}
@@ -899,6 +907,7 @@ export const App = {
       ${metricRow('PoE supply', `${poe.totalBudget} W`)}
       ${metricRow('PoE load', `${poe.totalLoad} W`)}
       ${perSwitch}
+      ${pduRows}
       ${metricRow('Thermal load', thermalLabel)}
     `;
   },
