@@ -565,6 +565,64 @@ body.dark-mode .device:not(.placed) {
   box-shadow: 0 0 5px rgba(168, 85, 247, 0.4);
 }
 
+/* Rear (power-side) face */
+.device-rear {
+  display: none;
+  flex-grow: 1;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 8px;
+  background: #cbd5e1;
+  border-left: 1px solid #94a3b8;
+  border-right: 1px solid #94a3b8;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+.rack-wrapper.rear-view .device .device-body {
+  display: none;
+}
+.rack-wrapper.rear-view .device .device-rear {
+  display: flex;
+}
+.rack-wrapper.rear-view #cable-svg {
+  display: none;
+}
+.rear-inlet {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+  background: #1e293b;
+  border: 1.5px solid #475569;
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.6);
+}
+.rear-inlet--iec {
+  width: 22px;
+}
+.rear-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.rear-outlets {
+  display: flex;
+  gap: 3px;
+}
+.rear-outlet {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #1e293b;
+  border: 1px solid #475569;
+}
+
 /* PDU faceplate */
 .pdu-chassis {
   height: 34px;

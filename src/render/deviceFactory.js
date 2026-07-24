@@ -34,7 +34,15 @@ export function createDevice(type, uSlot = null) {
     if (ports.children.length > 0) body.appendChild(ports);
   }
 
-  dev.append(earL, body, earR);
+  // Rear (power-side) face — shown when the rack is flipped to rear view.
+  const rear = el('div', 'device-rear');
+  const inlets = spec.layout === 'pdu' ? spec.outlets ?? 8 : 1;
+  const inletHtml = spec.layout === 'pdu' ? '<span class="rear-inlet rear-inlet--iec"></span>' : '<span class="rear-inlet"></span>';
+  rear.innerHTML = `${inletHtml}<span class="rear-label">${escapeHtml(spec.name)}</span>${
+    inlets > 1 ? '<span class="rear-outlets">' + '<span class="rear-outlet"></span>'.repeat(inlets) + '</span>' : ''
+  }`;
+
+  dev.append(earL, body, rear, earR);
 
   if (uSlot) {
     dev.classList.add('placed');
@@ -178,4 +186,8 @@ function el(tag, className) {
   const node = document.createElement(tag);
   node.className = className;
   return node;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
