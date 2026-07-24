@@ -43,6 +43,7 @@ export const App = {
     this.renderSidebar();
     this.renderCustomSection();
     this.setupDeviceModal();
+    this.setupCableEditor();
     this.bindGlobalControls();
     this.bindDelegatedEvents();
     CableManager.init(this);
@@ -164,6 +165,99 @@ export const App = {
       this.updatePlacementUi();
     }
     this.renderCustomSection();
+  },
+
+  /* ------------------------------------------------------- Cable editor */
+
+  setupCableEditor() {
+    this.$cableEditor = document.getElementById('cable-editor');
+    this.editingCable = null;
+
+    const swatches = [
+      { name: 'Auto', color: null },
+      { name: 'Blue', color: '#3b82f6' },
+      { name: 'Green', color: '#10b981' },
+      { name: 'Orange', color: '#f97316' },
+      { name: 'Red', color: '#ef4444' },
+      { name: 'Purple', color: '#a855f7' },
+      { name: 'Cyan', color: '#06b6d4' },
+      { name: 'Gray', color: '#94a3b8' },
+    ];
+    document.getElementById('cable-swatches').innerHTML = swatches
+      .map(
+        (s) =>
+          `<button type="button" class="swatch${s.color ? '' : ' swatch-auto'}" data-color="${s.color ?? ''}" title="${s.name}" aria-label="${s.name}"${s.color ? ` style="background:${s.color}"` : ''}>${s.color ? '' : 'A'}</button>`
+      )
+      .join('');
+
+    // Open on cable click.
+    this.$svg.addEventListener('click', (e) => {
+      const path = e.target.closest('path.cable-path');
+      if (path) this.openCableEditor(parseInt(path.dataset.cidx, 10), e);
+    });
+
+    // Label edits (debounced commit).
+    const input = document.getElementById('cable-label-input');
+    input.addEventListener('input', () => {
+      if (this.editingCable == null) return;
+      this.connections[this.editingCable].label = input.value.trim() || undefined;
+      clearTimeout(this.labelTimer);
+      this.labelTimer = setTimeout(() => this.commit(), 500);
+    });
+
+    document.getElementById('cable-swatches').addEventListener('click', (e) => {
+      const btn = e.target.closest('.swatch');
+      if (!btn || this.editingCable == null) return;
+      this.connections[this.editingCable].color = btn.dataset.color || undefined;
+      this.markActiveSwatch();
+      this.commit();
+    });
+
+    document.getElementById('cable-delete').addEventListener('click', () => {
+      if (this.editingCable == null) return;
+      this.connections.splice(this.editingCable, 1);
+      this.closeCableEditor();
+      this.commit();
+    });
+
+    // Dismiss on outside click / Escape.
+    document.addEventListener('pointerdown', (e) => {
+      if (!this.$cableEditor.hidden && !e.target.closest('#cable-editor') && !e.target.closest('path.cable-path')) {
+        this.closeCableEditor();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !this.$cableEditor.hidden) this.closeCableEditor();
+    });
+  },
+
+  openCableEditor(index, e) {
+    const c = this.connections[index];
+    if (!c) return;
+    this.editingCable = index;
+    const input = document.getElementById('cable-label-input');
+    input.value = c.label || '';
+    this.markActiveSwatch();
+
+    this.$cableEditor.hidden = false;
+    const x = Math.min(e.clientX, window.innerWidth - this.$cableEditor.offsetWidth - 12);
+    const y = Math.min(e.clientY + 8, window.innerHeight - this.$cableEditor.offsetHeight - 12);
+    this.$cableEditor.style.left = `${Math.max(12, x)}px`;
+    this.$cableEditor.style.top = `${Math.max(12, y)}px`;
+    input.focus();
+  },
+
+  markActiveSwatch() {
+    if (this.editingCable == null) return;
+    const current = this.connections[this.editingCable].color || '';
+    document.querySelectorAll('#cable-swatches .swatch').forEach((s) => {
+      s.classList.toggle('swatch-active', s.dataset.color === current);
+    });
+  },
+
+  closeCableEditor() {
+    this.$cableEditor.hidden = true;
+    this.editingCable = null;
   },
 
   /* -------------------------------------------------- Custom device modal */
@@ -620,14 +714,20 @@ export const App = {
         }
       });
 
-      const { color, kind } = classifyConnection(map, c.from, c.to);
+      const { color: autoColor, kind } = classifyConnection(map, c.from, c.to);
       counts[kind]++;
 
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('class', 'cable-path');
       path.dataset.uPair = `${uA}|${uB}`;
+      path.dataset.cidx = index;
       path.setAttribute('d', cablePath(a.x, a.y, b.x, b.y, routeY));
-      path.setAttribute('stroke', color);
+      path.setAttribute('stroke', c.color || autoColor);
+      if (c.label) {
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = c.label;
+        path.appendChild(title);
+      }
       path.setAttribute('stroke-width', '2.8');
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke-linecap', 'round');
@@ -703,10 +803,11 @@ export const App = {
     }
     this.$schedule.innerHTML = schedule
       .map(
-        (r) => `<div class="schedule-row" role="listitem" title="${escapeHtml(r.kindLabel)}">
+        (r) => `<div class="schedule-row" role="listitem" title="${escapeHtml(r.kindLabel)}${r.label ? ' — ' + escapeHtml(r.label) : ''}">
           <span class="sched-end">U${r.from.u}·P${r.from.port}${r.from.label ? ` <em>${escapeHtml(r.from.label)}</em>` : ''}</span>
           <span class="sched-arrow" data-kind="${r.kind}">→</span>
           <span class="sched-end">U${r.to.u}·P${r.to.port}${r.to.label ? ` <em>${escapeHtml(r.to.label)}</em>` : ''}</span>
+          ${r.label ? `<span class="sched-tag">${escapeHtml(r.label)}</span>` : ''}
         </div>`
       )
       .join('');
