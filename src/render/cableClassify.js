@@ -1,4 +1,5 @@
 import { DEVICE_TYPES, PORT_MEDIA_TYPES } from '../data/devices.js';
+import { parsePortId, portU } from '../utils/ports.js';
 
 /**
  * Pure cable classification, shared by the renderer (colours) and reports
@@ -26,14 +27,14 @@ export function rackByU(rack) {
 }
 
 export function portTypeAt(map, portId) {
-  const [uPart, pPart] = portId.split('-');
-  const type = map.get(parseInt(uPart.slice(1), 10));
+  const { u, idx } = parsePortId(portId);
+  const type = map.get(u);
   if (!type) return null;
-  return DEVICE_TYPES[type]?.ports[parseInt(pPart.slice(1), 10)] ?? null;
+  return DEVICE_TYPES[type]?.ports[idx] ?? null;
 }
 
 export function deviceTypeAt(map, portId) {
-  return map.get(parseInt(portId.split('-')[0].slice(1), 10)) ?? null;
+  return map.get(portU(portId)) ?? null;
 }
 
 /**

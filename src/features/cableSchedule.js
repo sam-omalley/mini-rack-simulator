@@ -1,6 +1,7 @@
 import { DEVICE_TYPES } from '../data/devices.js';
 import { classifyConnection, rackByU, CABLE_LABELS } from '../render/cableClassify.js';
 import { toCsv } from '../utils/csv.js';
+import { parsePortId } from '../utils/ports.js';
 
 /**
  * Build a wireable cable schedule: one row per connection, with resolved
@@ -22,9 +23,7 @@ export function computeSchedule(state) {
 }
 
 function endpoint(map, labelsByU, portId) {
-  const [uPart, pPart] = portId.split('-');
-  const u = parseInt(uPart.slice(1), 10);
-  const idx = parseInt(pPart.slice(1), 10);
+  const { u, idx } = parsePortId(portId);
   return {
     u,
     port: idx + 1,
