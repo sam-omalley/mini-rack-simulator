@@ -22,6 +22,7 @@
       <div class="app-toolbar" role="toolbar" aria-label="Global actions">
         <button id="btn-undo" class="btn btn-icon" type="button" aria-label="Undo" disabled title="Undo (Ctrl/Cmd+Z)">↶</button>
         <button id="btn-redo" class="btn btn-icon" type="button" aria-label="Redo" disabled title="Redo (Ctrl/Cmd+Shift+Z)">↷</button>
+        <button id="btn-help" class="btn btn-icon" type="button" aria-haspopup="dialog" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
         <button id="btn-theme" class="btn" type="button" aria-pressed="false">🌙 Dark</button>
       </div>
     </header>
@@ -217,6 +218,27 @@
           <button type="submit" class="btn btn-primary">Add Device</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="help-modal" class="modal" aria-label="Keyboard shortcuts">
+      <div class="modal-form">
+        <h2 class="modal-title">Keyboard Shortcuts</h2>
+        <dl class="shortcuts">
+          <div><dt>Place a device</dt><dd>Tap a library card, then a slot — or drag it</dd></div>
+          <div><dt>Patch a cable</dt><dd>Drag between two ports, or focus a port and press <kbd>Enter</kbd></dd></div>
+          <div><dt>Edit / remove a cable</dt><dd>Click the cable</dd></div>
+          <div><dt>Select</dt><dd>Click a device · <kbd>Shift</kbd>/<kbd>Ctrl</kbd>-click for multiple</dd></div>
+          <div><dt>Move selected</dt><dd><kbd>↑</kbd> <kbd>↓</kbd></dd></div>
+          <div><dt>Duplicate selected</dt><dd><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>D</kbd></dd></div>
+          <div><dt>Delete selected</dt><dd><kbd>Delete</kbd> / <kbd>Backspace</kbd></dd></div>
+          <div><dt>Undo / Redo</dt><dd><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Z</kbd> · add <kbd>Shift</kbd> to redo</dd></div>
+          <div><dt>Cancel / clear selection</dt><dd><kbd>Esc</kbd></dd></div>
+          <div><dt>This help</dt><dd><kbd>?</kbd></dd></div>
+        </dl>
+        <div class="modal-actions">
+          <button id="help-close" class="btn btn-primary" type="button">Close</button>
+        </div>
+      </div>
     </dialog>
 
     <div id="cable-editor" class="cable-editor" role="dialog" aria-label="Edit cable" hidden>

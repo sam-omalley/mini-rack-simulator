@@ -47,6 +47,7 @@ export const App = {
     this.renderCustomSection();
     this.setupDeviceModal();
     this.setupCableEditor();
+    this.setupHelp();
     this.setupLayouts();
     this.bindGlobalControls();
     this.bindDelegatedEvents();
@@ -169,6 +170,20 @@ export const App = {
       this.updatePlacementUi();
     }
     this.renderCustomSection();
+  },
+
+  /* ------------------------------------------------------------- Help modal */
+
+  setupHelp() {
+    const modal = document.getElementById('help-modal');
+    document.getElementById('btn-help').addEventListener('click', () => modal.showModal());
+    document.getElementById('help-close').addEventListener('click', () => modal.close());
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '?' && document.activeElement?.tagName !== 'INPUT') {
+        e.preventDefault();
+        modal.open ? modal.close() : modal.showModal();
+      }
+    });
   },
 
   /* --------------------------------------------------------- Saved layouts */
