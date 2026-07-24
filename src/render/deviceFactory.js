@@ -47,12 +47,20 @@ export function createDevice(type, uSlot = null) {
   if (uSlot) {
     dev.classList.add('placed');
     dev.draggable = true;
+
+    const dup = el('button', 'dup-btn');
+    dup.type = 'button';
+    dup.dataset.action = 'duplicate';
+    dup.setAttribute('aria-label', `Duplicate ${spec.name}`);
+    dup.innerHTML = '⧉';
+
     const del = el('button', 'delete-btn');
     del.type = 'button';
     del.dataset.action = 'delete';
     del.setAttribute('aria-label', `Remove ${spec.name}`);
     del.innerHTML = '×';
-    dev.appendChild(del);
+
+    dev.append(dup, del);
   }
 
   return dev;

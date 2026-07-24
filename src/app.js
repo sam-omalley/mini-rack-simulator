@@ -435,11 +435,17 @@ export const App = {
       this.handleDrop(slot);
     });
 
-    // Tap-to-place, device select, delete.
+    // Tap-to-place, device select, duplicate, delete.
     this.$slots.addEventListener('click', (e) => {
       const del = e.target.closest('[data-action="delete"]');
       if (del) {
         this.removeDevice(del.closest('.device'));
+        return;
+      }
+      const dup = e.target.closest('[data-action="duplicate"]');
+      if (dup) {
+        this.selectDevice(dup.closest('.device'), false);
+        this.duplicateSelected();
         return;
       }
       const slot = e.target.closest('.slot');
@@ -449,7 +455,7 @@ export const App = {
       }
       const device = e.target.closest('.device.placed');
       if (device && !e.target.closest('.port-rj45') && !e.target.closest('.port-label')) {
-        this.selectDevice(device);
+        this.selectDevice(device, e.shiftKey || e.ctrlKey || e.metaKey);
       }
     });
 
@@ -546,6 +552,7 @@ export const App = {
   },
 
   canPlace(targetU, uHeight, ignore = null) {
+    const ignores = ignore ? (Array.isArray(ignore) ? ignore : [ignore]) : [];
     targetU = parseInt(targetU, 10);
     for (let i = 0; i < uHeight; i++) {
       const u = targetU - i;
@@ -553,41 +560,100 @@ export const App = {
       const slot = this.slot(u);
       if (!slot) return false;
       const dev = slot.querySelector('.device');
-      if (dev && dev !== ignore) return false;
+      if (dev && !ignores.includes(dev)) return false;
       const coveredBy = slot.getAttribute('data-occupied-by');
-      if (coveredBy && !(ignore && ignore.parentElement?.dataset.u === coveredBy)) return false;
+      if (coveredBy) {
+        const covering = this.slot(parseInt(coveredBy, 10))?.querySelector('.device');
+        if (!ignores.includes(covering)) return false;
+      }
     }
     return true;
   },
 
-  selectDevice(device) {
-    document.querySelectorAll('.device.placed.selected').forEach((d) => d.classList.remove('selected'));
-    device.classList.add('selected');
+  selectDevice(device, additive = false) {
+    if (!additive) {
+      document.querySelectorAll('.device.placed.selected').forEach((d) => d.classList.remove('selected'));
+      device.classList.add('selected');
+    } else {
+      device.classList.toggle('selected');
+    }
     device.focus();
+  },
+
+  selected() {
+    return [...document.querySelectorAll('.device.placed.selected')];
   },
 
   removeDevice(device) {
     if (!device) return;
-    device.querySelectorAll('.port-rj45').forEach((port) => {
-      const id = port.dataset.portId;
-      this.connections = this.connections.filter((c) => c.from !== id && c.to !== id);
-    });
+    this.detachConnections(device);
     device.remove();
     this.commit();
   },
 
-  moveSelected(direction) {
-    const device = document.querySelector('.device.placed.selected');
-    if (!device) return;
-    const fromU = parseInt(device.parentElement.dataset.u, 10);
-    const type = device.dataset.type;
-    const uHeight = uHeightOf(type);
-    const targetU = fromU + direction;
-    if (!this.canPlace(targetU, uHeight, device)) return;
-    this.slot(targetU).appendChild(device);
-    this.rebindPorts(device, targetU);
-    device.focus();
+  removeSelected() {
+    const selected = this.selected();
+    if (selected.length === 0) return;
+    selected.forEach((d) => {
+      this.detachConnections(d);
+      d.remove();
+    });
     this.commit();
+  },
+
+  detachConnections(device) {
+    device.querySelectorAll('.port-rj45').forEach((port) => {
+      const id = port.dataset.portId;
+      this.connections = this.connections.filter((c) => c.from !== id && c.to !== id);
+    });
+  },
+
+  moveSelected(direction) {
+    const selected = this.selected();
+    if (selected.length === 0) return;
+    // Every device must fit at its shifted position, ignoring the moving set.
+    const ok = selected.every((d) => this.canPlace(parseInt(d.parentElement.dataset.u, 10) + direction, uHeightOf(d.dataset.type), selected));
+    if (!ok) return;
+    // Move in travel order so appends never land on an occupied slot mid-shift.
+    const ordered = selected.sort((a, b) => {
+      const ua = parseInt(a.parentElement.dataset.u, 10);
+      const ub = parseInt(b.parentElement.dataset.u, 10);
+      return direction > 0 ? ub - ua : ua - ub;
+    });
+    ordered.forEach((d) => {
+      const nu = parseInt(d.parentElement.dataset.u, 10) + direction;
+      this.slot(nu).appendChild(d);
+      this.rebindPorts(d, nu);
+      this.updateOccupiedSlots();
+    });
+    ordered[0].focus();
+    this.commit();
+  },
+
+  duplicateSelected() {
+    const selected = this.selected();
+    if (selected.length === 0) return;
+    let placed = 0;
+    selected.forEach((d) => {
+      const type = d.dataset.type;
+      const u = this.findFreeSlot(uHeightOf(type));
+      if (u == null) return;
+      const dev = createDevice(type, u);
+      const labels = [...d.querySelectorAll('.port-label')].map((i) => i.value);
+      this.slot(u).appendChild(dev);
+      dev.querySelectorAll('.port-label').forEach((inp, idx) => (inp.value = labels[idx] ?? ''));
+      this.updateOccupiedSlots();
+      placed += 1;
+    });
+    if (placed > 0) this.commit();
+    else Toast.show('No free slot to duplicate into.');
+  },
+
+  findFreeSlot(uHeight) {
+    for (let u = uHeight; u <= this.maxU; u++) {
+      if (this.canPlace(u, uHeight)) return u;
+    }
+    return null;
   },
 
   rebindPorts(device, u) {
@@ -1030,23 +1096,33 @@ export const App = {
       this.redo();
       return;
     }
+    if (mod && e.key.toLowerCase() === 'd') {
+      if (this.selected().length) {
+        e.preventDefault();
+        this.duplicateSelected();
+      }
+      return;
+    }
     if (editing) return;
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      const selected = document.querySelector('.device.placed.selected');
-      if (selected) {
+      if (this.selected().length) {
         e.preventDefault();
-        this.removeDevice(selected);
+        this.removeSelected();
       }
-    } else if (e.key === 'ArrowUp' && document.querySelector('.device.placed.selected')) {
+    } else if (e.key === 'ArrowUp' && this.selected().length) {
       e.preventDefault();
       this.moveSelected(1);
-    } else if (e.key === 'ArrowDown' && document.querySelector('.device.placed.selected')) {
+    } else if (e.key === 'ArrowDown' && this.selected().length) {
       e.preventDefault();
       this.moveSelected(-1);
-    } else if (e.key === 'Escape' && this.placingType) {
-      this.placingType = null;
-      this.updatePlacementUi();
+    } else if (e.key === 'Escape') {
+      if (this.placingType) {
+        this.placingType = null;
+        this.updatePlacementUi();
+      } else {
+        this.selected().forEach((d) => d.classList.remove('selected'));
+      }
     }
   },
 
