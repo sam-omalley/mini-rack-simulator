@@ -8,10 +8,11 @@ dist/
 *.log
 npm-debug.log*
 
-# Editor / OS
+# Editor / OS / tooling
 .DS_Store
 .vscode/
 .idea/
+.claude/
 *.swp
 
 # Env

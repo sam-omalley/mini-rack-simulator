@@ -1,0 +1,91 @@
+.app-header {
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.app-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 360px minmax(400px, 1fr) 280px;
+  gap: 25px;
+  max-width: 1320px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.panel {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow-panel);
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 15px;
+  padding-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.center-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.stage-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.zoom-label {
+  min-width: 46px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.right-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.button-row {
+  display: flex;
+  gap: 8px;
+}

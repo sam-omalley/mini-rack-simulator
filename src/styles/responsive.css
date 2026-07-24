@@ -1,0 +1,70 @@
+/* Large tablet / small laptop: drop the right inspector below the stage. */
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-areas:
+      'sidebar stage'
+      'sidebar inspector';
+  }
+  .sidebar {
+    grid-area: sidebar;
+  }
+  .center-stage {
+    grid-area: stage;
+  }
+  .right-bar {
+    grid-area: inspector;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* Tablet portrait and below: single column, collapsible sidebar. */
+@media (max-width: 820px) {
+  body {
+    padding: 14px;
+  }
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'sidebar'
+      'stage'
+      'inspector';
+  }
+  .sidebar {
+    position: static;
+    max-height: none;
+  }
+  .sidebar-body {
+    max-height: 45vh;
+  }
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+  .right-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Phones: single-column inspector, tighter chrome. */
+@media (max-width: 560px) {
+  body {
+    padding: 10px;
+  }
+  h1 {
+    font-size: 20px;
+  }
+  .app-header {
+    margin-bottom: 16px;
+  }
+  .right-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rack-wrapper-container {
+    padding: 30px 0;
+    /* Allow the fixed-width rack to scroll rather than overflow the page. */
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+}
