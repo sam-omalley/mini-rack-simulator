@@ -753,6 +753,7 @@ export const App = {
     document.getElementById('btn-zoom-in').addEventListener('click', () => this.setZoom(this.zoom + 0.1));
     document.getElementById('btn-zoom-out').addEventListener('click', () => this.setZoom(this.zoom - 0.1));
     document.getElementById('btn-zoom-reset').addEventListener('click', () => this.setZoom(1));
+    document.getElementById('btn-face').addEventListener('click', () => this.toggleFace());
 
     document.getElementById('btn-undo').addEventListener('click', () => this.undo());
     document.getElementById('btn-redo').addEventListener('click', () => this.redo());
@@ -822,6 +823,13 @@ export const App = {
       this.placingType = null;
       this.updatePlacementUi();
     }
+  },
+
+  toggleFace() {
+    const rear = this.$wrapper.classList.toggle('rear-view');
+    const btn = document.getElementById('btn-face');
+    btn.textContent = rear ? '🔀 Rear' : '🔀 Front';
+    btn.setAttribute('aria-pressed', String(rear));
   },
 
   setZoom(z) {
