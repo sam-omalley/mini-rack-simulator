@@ -5,6 +5,7 @@ import { CableManager } from './render/cableManager.js';
 import { classifyConnection, rackByU } from './render/cableClassify.js';
 import { Persistence } from './features/persistence.js';
 import { computeBom, bomToCsv } from './features/bom.js';
+import { computeSchedule, scheduleToCsv } from './features/cableSchedule.js';
 import { getPortCenterInSVG, cablePath } from './utils/geometry.js';
 import { Tooltip } from './ui/tooltip.js';
 import { Toast } from './ui/toast.js';
@@ -51,6 +52,8 @@ export const App = {
     this.$report = document.getElementById('report-list');
     this.$power = document.getElementById('power-summary');
     this.$cableBreakdown = document.getElementById('cable-breakdown');
+    this.$schedule = document.getElementById('schedule-list');
+    this.$scheduleCount = document.getElementById('schedule-count');
     this.$hint = document.getElementById('placement-hint');
   },
 
@@ -389,6 +392,7 @@ export const App = {
     this.updateThermalMap();
     this.requestRedraw();
     this.updateReport();
+    this.updateCableSchedule();
     this.updatePowerSummary();
     Persistence.save(this.getState());
   },
@@ -535,6 +539,24 @@ export const App = {
     }
   },
 
+  updateCableSchedule() {
+    const schedule = computeSchedule(this.getState());
+    this.$scheduleCount.textContent = schedule.length;
+    if (schedule.length === 0) {
+      this.$schedule.innerHTML = '<div class="schedule-empty text-muted">No cables yet.</div>';
+      return;
+    }
+    this.$schedule.innerHTML = schedule
+      .map(
+        (r) => `<div class="schedule-row" role="listitem" title="${escapeHtml(r.kindLabel)}">
+          <span class="sched-end">U${r.from.u}·P${r.from.port}${r.from.label ? ` <em>${escapeHtml(r.from.label)}</em>` : ''}</span>
+          <span class="sched-arrow" data-kind="${r.kind}">→</span>
+          <span class="sched-end">U${r.to.u}·P${r.to.port}${r.to.label ? ` <em>${escapeHtml(r.to.label)}</em>` : ''}</span>
+        </div>`
+      )
+      .join('');
+  },
+
   updatePowerSummary() {
     const m = computeMetrics(this.getState().rack, this.maxU);
     const thermalLabel = { cool: '🟢 Cool', warm: '🟡 Warm', high: '🔴 High' }[m.thermalLevel];
@@ -578,6 +600,8 @@ export const App = {
     document.getElementById('btn-export-png').addEventListener('click', (e) => exportPNG(e.currentTarget));
     document.getElementById('btn-export-bom').addEventListener('click', () => this.downloadBom());
     document.getElementById('btn-copy-bom').addEventListener('click', () => this.copyBom());
+    document.getElementById('btn-export-schedule').addEventListener('click', () => this.downloadSchedule());
+    document.getElementById('btn-copy-schedule').addEventListener('click', () => this.copySchedule());
     document.getElementById('btn-copy-report').addEventListener('click', () => this.copyReport());
     document.getElementById('btn-share').addEventListener('click', () => this.copyShareLink());
     document.getElementById('btn-export-json').addEventListener('click', () => this.downloadJSON());
@@ -658,12 +682,7 @@ export const App = {
       Toast.show('Rack is empty — nothing to export.');
       return;
     }
-    const blob = new Blob([bomToCsv(bom)], { type: 'text/csv' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `rack-bom-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadText(bomToCsv(bom), `rack-bom-${dateStamp()}.csv`, 'text/csv');
   },
 
   copyBom() {
@@ -673,6 +692,24 @@ export const App = {
       return;
     }
     this.copyText(bomToCsv(bom), 'Bill of Materials copied to clipboard.');
+  },
+
+  downloadSchedule() {
+    const schedule = computeSchedule(this.getState());
+    if (schedule.length === 0) {
+      Toast.show('No cables to export.');
+      return;
+    }
+    downloadText(scheduleToCsv(schedule), `rack-cable-schedule-${dateStamp()}.csv`, 'text/csv');
+  },
+
+  copySchedule() {
+    const schedule = computeSchedule(this.getState());
+    if (schedule.length === 0) {
+      Toast.show('No cables to export.');
+      return;
+    }
+    this.copyText(scheduleToCsv(schedule), 'Cable schedule copied to clipboard.');
   },
 
   copyShareLink() {
@@ -688,12 +725,7 @@ export const App = {
   },
 
   downloadJSON() {
-    const blob = new Blob([Persistence.toJSON(this.getState())], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `rack-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadText(Persistence.toJSON(this.getState()), `rack-${dateStamp()}.json`, 'application/json');
   },
 
   async importJSON(file) {
@@ -713,7 +745,24 @@ export const App = {
   },
 };
 
+function dateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function downloadText(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 function metricRow(label, value, color) {
   const style = color ? ` style="color:${color}"` : '';
   return `<div class="metric-row"><span>${label}</span><strong${style}>${value}</strong></div>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
