@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+.vite/
 
 # Logs
 *.log
@@ -18,3 +19,6 @@ npm-debug.log*
 # Env
 .env
 .env.local
+
+# Private, local-only planning / tracker (never commit)
+.private/
