@@ -1,5 +1,6 @@
 import { DEVICE_TYPES } from '../data/devices.js';
 import { countCables, CABLE_LABELS } from '../render/cableClassify.js';
+import { toCsv } from '../utils/csv.js';
 
 /**
  * Build a Bill of Materials from a rack state: devices aggregated by model,
@@ -38,10 +39,5 @@ export function bomToCsv(bom) {
   rows.push(['Cabling', 'Type', 'Count', '', '']);
   Object.entries(CABLE_LABELS).forEach(([key, label]) => rows.push(['Cable', label, bom.cables[key], '', '']));
   rows.push(['Cable', 'Total', bom.cables.total, '', '']);
-  return rows.map((r) => r.map(csvCell).join(',')).join('\n');
-}
-
-function csvCell(v) {
-  const s = String(v ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return toCsv(rows);
 }
