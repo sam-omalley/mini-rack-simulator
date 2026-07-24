@@ -58,6 +58,73 @@
   font-weight: 700;
 }
 
+.title-count {
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--panel-subtle);
+  border: 1px solid var(--panel-border);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 11px;
+}
+.schedule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--panel-subtle);
+}
+.schedule-row .sched-end {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schedule-row .sched-end:last-child {
+  text-align: right;
+}
+.schedule-row em {
+  font-style: normal;
+  color: var(--accent-blue);
+}
+.sched-arrow {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+.sched-arrow[data-kind='xg'] {
+  color: var(--accent-orange);
+}
+.sched-arrow[data-kind='wan'],
+.sched-arrow[data-kind='conflict'] {
+  color: var(--accent-red);
+}
+.sched-arrow[data-kind='sfp'] {
+  color: var(--accent-sfp);
+}
+.sched-arrow[data-kind='patch'] {
+  color: var(--text-muted);
+}
+.sched-arrow[data-kind='std'] {
+  color: var(--accent-blue);
+}
+.schedule-empty {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
 .report-list {
   display: flex;
   flex-direction: column;
