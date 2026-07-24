@@ -43,6 +43,14 @@ export const DEVICE_TYPES = {
   'deskpi-dp0101': { name: 'DeskPi 6.91" 1U Touch Screen (DP-0101)', ports: [], uHeight: 1, bracket: true, bracketWidth: 270, layout: 'deskpi-screen', watts: 5, poeBudget: 0, heatWeight: 1 },
   'deskpi-dp0059': { name: 'DeskPi 7.84" 2U Touch Screen (DP-0059)', ports: [], uHeight: 2, bracket: true, bracketWidth: 270, layout: 'deskpi-screen', watts: 8, poeBudget: 0, heatWeight: 1 },
   'deskpi-dp0100': { name: 'DeskPi 9" 3U Touch Screen (DP-0100)', ports: [], uHeight: 3, bracket: true, bracketWidth: 270, layout: 'deskpi-screen', watts: 12, poeBudget: 0, heatWeight: 2 },
+
+  // Other vendors
+  'mikrotik-crs310': { name: 'MikroTik CRS310-8G+2S+', ports: [...Array(8).fill('2.5g'), 'sfp', 'sfp'], uHeight: 1, bracket: true, bracketWidth: 220, watts: 18, poeBudget: 0, heatWeight: 3 },
+  'synology-nas-2bay': { name: 'Synology 2-bay NAS (shelf)', ports: ['2.5g', 'gbe'], uHeight: 2, bracket: true, bracketWidth: 200, watts: 30, poeBudget: 0, heatWeight: 3 },
+
+  // Power & accessories
+  'pdu-8': { name: '8-Outlet PDU (10")', ports: [], uHeight: 1, bracket: true, bracketWidth: 250, layout: 'pdu', outlets: 8, watts: 0, poeBudget: 0, heatWeight: 0 },
+  'shelf-1u': { name: '1U Vented Shelf', ports: [], uHeight: 1, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
 };
 
 /** Port metadata for tooltips. */
@@ -88,7 +96,9 @@ export const CATEGORIES = [
   },
   { title: '🌐 Routers & Gateways', types: ['ucg-max', 'ucg-ultra', 'ucg-fiber', 'ux7'] },
   { title: '🍓 DeskPi & Displays', types: ['deskpi-dp0039', 'deskpi-dp0046', 'deskpi-dp0101', 'deskpi-dp0059', 'deskpi-dp0100'] },
-  { title: '💻 Servers & Mini PCs', types: ['dell-optiplex-micro'] },
+  { title: '💻 Servers & Mini PCs', types: ['dell-optiplex-micro', 'synology-nas-2bay'] },
+  { title: '🌍 Other Vendors', types: ['mikrotik-crs310'] },
+  { title: '🔩 Power & Accessories', types: ['pdu-8', 'shelf-1u'] },
 ];
 
 /** Convenience: uHeight with a safe default. */
