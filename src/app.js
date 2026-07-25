@@ -148,6 +148,10 @@ export const App = {
       this.fromSidebar = true;
       e.dataTransfer.effectAllowed = 'copy';
       card.classList.add('dragging');
+      // The sidebar isn't zoomed, so the native drag image would preview at 100%
+      // even when the rack is scaled — match the zoom so it looks like the drop.
+      // At 100% the native image is already correct, so skip the custom ghost.
+      if (this.zoom !== 1) this.setScaledDragImage(e, card.querySelector('.device'));
       this.beginDrag(type, 'sidebar');
     });
     card.addEventListener('dragend', () => {
@@ -1376,6 +1380,41 @@ export const App = {
   },
 
   /**
+   * Give a drag an upright drag image scaled to the current zoom. Two sources
+   * need this: a library card (its sidebar is never zoomed, so the native
+   * preview shows 100%) and a picked-up fallen device (the native preview
+   * ignores the zone's zoom transform, and would keep the body's rotation). We
+   * snapshot an upright, zoom-scaled clone so the preview matches how the device
+   * looks once dropped. Sizing uses offsetWidth/Height — the intrinsic layout
+   * size, unaffected by any ancestor CSS transform.
+   */
+  setScaledDragImage(e, deviceEl) {
+    if (!deviceEl || !e.dataTransfer) return;
+    const z = this.zoom;
+    const vis = deviceEl.getBoundingClientRect(); // visual rect, for the grab hotspot
+    const iw = deviceEl.offsetWidth || 240;
+    const ih = deviceEl.offsetHeight || 38;
+    const ghost = document.createElement('div');
+    ghost.style.cssText = `position:absolute;top:-10000px;left:-10000px;pointer-events:none;width:${iw * z}px;height:${ih * z}px;overflow:hidden;`;
+    const clone = deviceEl.cloneNode(true);
+    clone.style.position = 'static';
+    clone.style.margin = '0';
+    clone.style.left = '0';
+    clone.style.top = '0';
+    clone.style.width = `${iw}px`;
+    clone.style.opacity = '1'; // in case the source is dimmed while lifted
+    clone.style.transform = `scale(${z})`; // upright — strips any rotation
+    clone.style.transformOrigin = 'top left';
+    ghost.appendChild(clone);
+    document.body.appendChild(ghost);
+    const clamp01 = (n) => Math.max(0, Math.min(1, n));
+    const fx = vis.width ? clamp01((e.clientX - vis.left) / vis.width) : 0.5;
+    const fy = vis.height ? clamp01((e.clientY - vis.top) / vis.height) : 0.2;
+    e.dataTransfer.setDragImage(ghost, fx * iw * z, fy * ih * z);
+    setTimeout(() => ghost.remove(), 0); // remove once the browser has snapshotted it
+  },
+
+  /**
    * Wire up drag-to-delete: the bin, the library/inspector panels, and dragging
    * off the window all remove a placed or lifted device. Also lifts a fallen
    * free device into a normal drag when the user picks it up.
@@ -1391,6 +1430,9 @@ export const App = {
       this.draggedEl = el;
       this.fromSidebar = false;
       e.dataTransfer.effectAllowed = 'copyMove';
+      // The native preview ignores the zone's zoom and keeps the body's tilt;
+      // use an upright, zoom-matched ghost so it matches how it'll drop.
+      this.setScaledDragImage(e, el);
       this.beginDrag(info.type, 'free');
     });
     zone.addEventListener('dragend', () => this.endDrag());

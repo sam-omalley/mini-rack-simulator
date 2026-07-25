@@ -1,7 +1,7 @@
 import Matter from 'matter-js';
 import { createDevice, applyBayFill } from '../render/deviceFactory.js';
 
-const { Engine, Runner, Composite, Bodies, Body, Events } = Matter;
+const { Engine, Runner, Composite, Bodies, Body, Query, Events } = Matter;
 
 // Static-body thickness for the floor/walls, and how far off-screen the walls
 // sit so nothing visibly clips the zone edge.
@@ -112,18 +112,30 @@ export const FreeZone = {
     const w = el.offsetWidth || 240;
     const h = el.offsetHeight || 38;
 
-    const body = Bodies.rectangle(x, y, w, h, { ...BODY_OPTS, angle });
+    // Keep the whole device within the side walls, so it can never spawn
+    // overlapping one (which straight-up lifting couldn't resolve).
+    const zone = this._metrics();
+    const cx = Math.max(w / 2, Math.min(zone.w - w / 2, x));
+    const cy = Math.max(h / 2, y);
+
+    const body = Bodies.rectangle(cx, cy, w, h, { ...BODY_OPTS, angle });
     body._el = el;
     body._dims = { w, h };
     el._body = body;
     this.items.set(body, { el, type, fills: fills || null });
     Composite.add(this.engine.world, body);
+    this._liftClear(body); // lift out of any collider it landed inside
     this._paint(body);
     return body;
   },
 
   clear() {
-    for (const { el } of this.items.values()) el.remove();
+    // Remove the physics body too, not just its element — otherwise the collider
+    // lingers in the world and invisibly blocks devices dropped afterwards.
+    for (const [body, { el }] of this.items) {
+      Composite.remove(this.engine.world, body);
+      el.remove();
+    }
     this.items.clear();
     this.lifted?.el.remove();
     this.lifted = null;
@@ -240,6 +252,30 @@ export const FreeZone = {
     this.app?.persistFreeSoon();
   },
 
+  /**
+   * Lift a freshly-placed body straight up until it no longer overlaps a static
+   * (the rack, its handles, the floor). Matter leaves a body wedged when it
+   * spawns deep inside a collider, so we resolve it up front — deterministically
+   * and vertically only, so it lands cleanly on top instead of drifting sideways
+   * or staying stuck. Horizontal overlap with the off-screen walls is avoided by
+   * clamping the spawn x in `_add`, so straight-up always clears.
+   */
+  _liftClear(body) {
+    for (let iter = 0; iter < 40; iter++) {
+      const hits = Query.collides(body, this.statics);
+      if (!hits.length) return;
+      // Rise above the highest (smallest top-y) collider we're currently inside.
+      let topY = Infinity;
+      for (const c of hits) {
+        const other = c.bodyA === body ? c.bodyB : c.bodyA;
+        if (other.bounds.min.y < topY) topY = other.bounds.min.y;
+      }
+      if (!Number.isFinite(topY)) return;
+      const halfH = (body.bounds.max.y - body.bounds.min.y) / 2;
+      Body.setPosition(body, { x: body.position.x, y: topY - halfH - 0.5 });
+    }
+  },
+
   /* -------------------------------------------------------- Pick up / drop */
 
   /**
@@ -264,6 +300,9 @@ export const FreeZone = {
     Composite.remove(this.engine.world, body);
     this.items.delete(body);
     el._body = null;
+    // Lifting one out from under a stack drops the others' support — wake the
+    // sim so they fall and re-settle instead of hovering in mid-air.
+    if (this.items.size) this._ensureRunning();
     return { type: item.type, fills: item.fills };
   },
 
@@ -284,6 +323,8 @@ export const FreeZone = {
   /** Re-drop the lifted device into the playground at a point, so it falls again. */
   respawn(clientX, clientY) {
     if (!this.lifted) return;
+    // Drop upright: the drag ghost is shown upright too, so the two stay
+    // consistent, and the device then settles under gravity.
     const { type, fills } = this.lifted;
     const { w, h } = this._metrics();
     const local = this._toLocal(clientX, clientY);
