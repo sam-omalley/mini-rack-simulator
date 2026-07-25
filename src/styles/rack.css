@@ -15,9 +15,15 @@
 /* Free-positioning easter egg (issue #43): a physics playground overlaying the
    stage. The layer itself ignores pointer events so the rack underneath stays
    fully interactive; only the free devices opt back in so they can be dragged. */
+/* Sized in JS (FreeZone._sizeZone) to the stage divided by the camera zoom, so
+   that once the camera scales it back it covers the stage exactly — the world
+   boundary stays on the same physical edge at every zoom level. Centred to match
+   the camera's top-centre origin. */
 .free-zone {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 60;
   pointer-events: none;
   overflow: hidden;

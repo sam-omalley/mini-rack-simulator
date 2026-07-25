@@ -31,7 +31,6 @@ export const FreeZone = {
   lifted: null, // the device currently picked up (removed from simulation)
   _running: false,
   _calmTicks: 0,
-  _lastSize: null, // last known zone size, to remap devices when it changes
 
   init(app) {
     this.app = app;
@@ -48,6 +47,12 @@ export const FreeZone = {
 
     this.syncBounds();
     window.addEventListener('resize', () => this.syncBounds());
+    // The stage settles later than init (panels populate, fonts land, the rack
+    // height changes), so track its box rather than measuring only once.
+    const stage = this.zone.closest('.stage');
+    if (stage && typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => this.syncBounds()).observe(stage);
+    }
   },
 
   count() {
@@ -63,6 +68,23 @@ export const FreeZone = {
 
   _zoom() {
     return this.app?.zoom || 1;
+  },
+
+  /**
+   * Size the world so it always covers the stage on screen, whatever the zoom.
+   * The camera scales the zone by `z`, so the zone's own (world) size has to be
+   * the stage size divided by `z`. Zooming out therefore widens the world rather
+   * than shrinking its walls — the boundary stays put on screen, which is what a
+   * camera should do. Devices keep their world coordinates throughout.
+   */
+  _sizeZone() {
+    const stage = this.zone.closest('.stage');
+    if (!stage) return;
+    const sr = stage.getBoundingClientRect();
+    if (!sr.width || !sr.height) return;
+    const z = this._zoom();
+    this.zone.style.width = `${sr.width / z}px`;
+    this.zone.style.height = `${sr.height / z}px`;
   },
 
   /** Zone rect (client, i.e. zoom-scaled) plus its unscaled logical size. */
@@ -184,29 +206,28 @@ export const FreeZone = {
     for (const s of this.statics) Composite.remove(this.engine.world, s);
     this.statics = [];
 
+    this._sizeZone();
     const { rect, z, w, h } = this._metrics();
     if (rect.width === 0 || rect.height === 0) return;
 
-    // If the play area changed size (a sidebar collapsed, the window resized),
-    // move fallen devices to keep their relative spot — otherwise they'd hang at
-    // stale pixel coords while the floor/walls/cabinet shift beneath them.
-    const prev = this._lastSize;
-    if (prev && prev.w > 0 && prev.h > 0 && (prev.w !== w || prev.h !== h)) {
-      const sx = w / prev.w;
-      const sy = h / prev.h;
-      for (const body of this.items.keys()) {
-        Body.setPosition(body, { x: body.position.x * sx, y: body.position.y * sy });
-        this._paint(body);
-      }
-      if (this.items.size) this._ensureRunning(); // let them re-settle against the new geometry
-    }
-    this._lastSize = { w, h };
+    // Side walls sit at the inner edge of whichever panel is showing, and slide
+    // out to the world edge when it's collapsed — so collapsing a panel simply
+    // hands its floor space to the playground. Nothing else moves: the rack is
+    // centred on the stage, which never changes size.
+    const edgeOf = (sel, side) => {
+      const el = document.querySelector(sel);
+      if (!el || el.offsetParent === null) return side === 'left' ? 0 : w;
+      const r = el.getBoundingClientRect();
+      return ((side === 'left' ? r.right : r.left) - rect.left) / z;
+    };
+    const leftX = Math.max(0, Math.min(w, edgeOf('.sidebar', 'left')));
+    const rightX = Math.max(0, Math.min(w, edgeOf('.right-bar', 'right')));
 
     const opt = { isStatic: true };
     this.statics.push(
       Bodies.rectangle(w / 2, h + WALL / 2, w + WALL * 2, WALL, opt), // floor
-      Bodies.rectangle(-WALL / 2, h / 2, WALL, h * 3, opt), // left wall
-      Bodies.rectangle(w + WALL / 2, h / 2, WALL, h * 3, opt) // right wall
+      Bodies.rectangle(leftX - WALL / 2, h / 2, WALL, h * 3, opt), // left wall
+      Bodies.rectangle(rightX + WALL / 2, h / 2, WALL, h * 3, opt) // right wall
     );
 
     // Map a zoom-scaled client rect into unscaled zone-local space and add it as

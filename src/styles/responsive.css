@@ -5,18 +5,34 @@
     grid-template-areas:
       'sidebar stage'
       'sidebar inspector';
+    min-height: 0;
+  }
+  /* Below this width the stage rejoins the flow as a normal grid cell — the
+     overlay world (and panel collapsing) is a desktop-only affordance. */
+  .stage {
+    position: static;
+    overflow: visible;
+    height: auto;
+    grid-area: stage;
+  }
+  .stage-controls {
+    position: static;
+    transform: none;
+    justify-content: center;
+    margin-bottom: 8px;
   }
   .sidebar {
     grid-area: sidebar;
-  }
-  .center-stage {
-    grid-area: stage;
   }
   .right-bar {
     grid-area: inspector;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
+  }
+  .sidebar,
+  .right-bar {
+    grid-column: auto;
   }
 }
 
