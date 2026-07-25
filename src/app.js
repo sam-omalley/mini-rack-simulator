@@ -75,6 +75,7 @@ export const App = {
     this.$slots = document.getElementById('slots-container');
     this.$svg = document.getElementById('cable-svg');
     this.$wrapper = document.getElementById('rack-wrapper');
+    this.$camera = document.querySelector('.rack-wrapper-container');
     this.$report = document.getElementById('report-list');
     this.$power = document.getElementById('power-summary');
     this.$cableBreakdown = document.getElementById('cable-breakdown');
@@ -1564,18 +1565,12 @@ export const App = {
 
   setZoom(z) {
     this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z * 10) / 10));
-    this.$wrapper.style.transform = `scale(${this.zoom})`;
-    this.$wrapper.style.transformOrigin = 'top center';
-    // Scale the physics playground in lock-step with the rack so fallen devices
-    // zoom too. Its origin is the rack-wrapper's top-centre (the wrapper sits
-    // `offsetTop` below the zone's top edge), so both layers scale about the
-    // same physical point and stay aligned. FreeZone maps client↔sim coords
-    // through this.zoom, so its simulation stays in unscaled space.
-    const zone = document.getElementById('free-zone');
-    if (zone) {
-      zone.style.transform = `scale(${this.zoom})`;
-      zone.style.transformOrigin = `50% ${this.$wrapper.offsetTop}px`;
-    }
+    // Zoom is a pure camera operation: one transform on the container that wraps
+    // BOTH the rack and the physics playground, so they scale together about the
+    // exact same origin. The simulation itself lives in unscaled world space;
+    // FreeZone maps client↔world coordinates through this.zoom for input only.
+    this.$camera.style.transform = `scale(${this.zoom})`;
+    this.$camera.style.transformOrigin = 'top center';
     document.getElementById('zoom-label').textContent = `${Math.round(this.zoom * 100)}%`;
     this.requestRedraw();
     FreeZone.syncBounds();

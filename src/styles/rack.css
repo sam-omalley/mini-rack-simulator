@@ -6,6 +6,10 @@
   /* Extra headroom above the rack gives the physics playground room to breathe. */
   padding: 90px 0 40px;
   overflow: visible;
+  /* Camera layer: a single zoom transform here scales the rack and the physics
+     playground together (see App.setZoom). Applied instantly — the physics
+     geometry is resynced synchronously on zoom, so an animated transform would
+     be read mid-flight. */
 }
 
 /* Free-positioning easter egg (issue #43): a physics playground overlaying the
