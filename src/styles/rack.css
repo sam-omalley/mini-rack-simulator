@@ -39,9 +39,11 @@
 .free-zone .free-device * {
   pointer-events: none;
 }
-/* Hidden placeholder while the device is being dragged out of the simulation. */
+/* While a device is dragged out of the simulation, dim the placeholder rather
+   than hiding it — hiding leaves no drag image following the cursor. Picking a
+   fallen device up should look like dragging a fresh library card. */
 .free-zone .free-device.lifted {
-  visibility: hidden;
+  opacity: 0.4;
 }
 /* Fallen devices flip with the rack when the front/rear view is toggled. */
 .free-zone.rear-view .free-device .device-body {

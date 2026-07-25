@@ -75,17 +75,29 @@
 
       <!-- Rack stage -->
       <section class="center-stage" id="rack-stage" aria-label="Rack">
+        <!-- Edge-anchored rail toggles: collapse the panel they sit against to
+             free up play space (desktop only; hidden at narrow widths). -->
+        <button
+          id="btn-collapse-left"
+          class="rail-toggle rail-left"
+          type="button"
+          aria-pressed="false"
+          title="Collapse the device library for more play space"
+          aria-label="Collapse device library"
+        >
+          ⟨
+        </button>
+        <button
+          id="btn-collapse-right"
+          class="rail-toggle rail-right"
+          type="button"
+          aria-pressed="false"
+          title="Collapse the details panel for more play space"
+          aria-label="Collapse details panel"
+        >
+          ⟩
+        </button>
         <div class="stage-controls" role="toolbar" aria-label="Rack view controls">
-          <button
-            id="btn-collapse-left"
-            class="btn btn-icon"
-            type="button"
-            aria-pressed="false"
-            title="Collapse the device library for more play space"
-            aria-label="Collapse device library"
-          >
-            ⟨
-          </button>
           <button id="btn-zoom-out" class="btn btn-icon" type="button" aria-label="Zoom out">−</button>
           <span id="zoom-label" class="zoom-label" aria-live="polite">100%</span>
           <button id="btn-zoom-in" class="btn btn-icon" type="button" aria-label="Zoom in">+</button>
@@ -101,16 +113,6 @@
             title="Toggle the fine ½U grid — snap placement to half-units (G)"
           >
             ▦ ½U grid
-          </button>
-          <button
-            id="btn-collapse-right"
-            class="btn btn-icon"
-            type="button"
-            aria-pressed="false"
-            title="Collapse the details panel for more play space"
-            aria-label="Collapse details panel"
-          >
-            ⟩
           </button>
         </div>
         <div class="rack-wrapper-container">

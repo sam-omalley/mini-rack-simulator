@@ -1,7 +1,7 @@
 import Matter from 'matter-js';
 import { createDevice, applyBayFill } from '../render/deviceFactory.js';
 
-const { Engine, Runner, Composite, Bodies, Events } = Matter;
+const { Engine, Runner, Composite, Bodies, Body, Events } = Matter;
 
 // Static-body thickness for the floor/walls, and how far off-screen the walls
 // sit so nothing visibly clips the zone edge.
@@ -31,6 +31,7 @@ export const FreeZone = {
   lifted: null, // the device currently picked up (removed from simulation)
   _running: false,
   _calmTicks: 0,
+  _lastSize: null, // last known zone size, to remap devices when it changes
 
   init(app) {
     this.app = app;
@@ -53,6 +54,30 @@ export const FreeZone = {
     return this.items.size;
   },
 
+  /* ------------------------------------------------------ Coordinate space */
+
+  // The physics simulation and every stored position live in UNSCALED zone-local
+  // pixels. The zone is visually scaled by the rack's zoom via a CSS transform
+  // (applied in App.setZoom), so we divide out that zoom whenever we cross
+  // between client space and simulation space.
+
+  _zoom() {
+    return this.app?.zoom || 1;
+  },
+
+  /** Zone rect (client, i.e. zoom-scaled) plus its unscaled logical size. */
+  _metrics() {
+    const rect = this.zone.getBoundingClientRect();
+    const z = this._zoom();
+    return { rect, z, w: rect.width / z || 1, h: rect.height / z || 1 };
+  },
+
+  /** Map a client point to unscaled zone-local coordinates. */
+  _toLocal(clientX, clientY) {
+    const { rect, z } = this._metrics();
+    return { x: (clientX - rect.left) / z, y: (clientY - rect.top) / z };
+  },
+
   /* ------------------------------------------------------------ Spawning */
 
   /**
@@ -61,10 +86,9 @@ export const FreeZone = {
    */
   spawn(type, clientX, clientY, fills = null) {
     if (!this.zone) return false;
-    const rect = this.zone.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return false;
+    const { w, h } = this._metrics();
+    const { x, y } = this._toLocal(clientX, clientY);
+    if (x < 0 || y < 0 || x > w || y > h) return false;
     this._add(type, x, y, 0, fills);
     this._ensureRunning();
     this.app?.commit();
@@ -111,9 +135,7 @@ export const FreeZone = {
   /** Serialise free devices as fractions of the zone, so they survive resize. */
   serialize() {
     if (!this.zone || this.items.size === 0) return [];
-    const rect = this.zone.getBoundingClientRect();
-    const w = rect.width || 1;
-    const h = rect.height || 1;
+    const { w, h } = this._metrics();
     const out = [];
     for (const [body, item] of this.items) {
       const entry = {
@@ -132,11 +154,11 @@ export const FreeZone = {
   load(list) {
     this.clear();
     if (!this.zone || !Array.isArray(list) || list.length === 0) return;
-    const rect = this.zone.getBoundingClientRect();
+    const { w, h } = this._metrics();
     for (const f of list) {
       if (!f || typeof f.type !== 'string') continue;
-      const x = clamp01(f.nx) * rect.width;
-      const y = clamp01(f.ny) * rect.height;
+      const x = clamp01(f.nx) * w;
+      const y = clamp01(f.ny) * h;
       this._add(f.type, x, y, Number(f.angle) || 0, Array.isArray(f.fills) ? f.fills : null);
     }
     if (this.items.size) this._ensureRunning();
@@ -150,10 +172,24 @@ export const FreeZone = {
     for (const s of this.statics) Composite.remove(this.engine.world, s);
     this.statics = [];
 
-    const rect = this.zone.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
-    if (w === 0 || h === 0) return;
+    const { rect, z, w, h } = this._metrics();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    // If the play area changed size (a sidebar collapsed, the window resized),
+    // move fallen devices to keep their relative spot — otherwise they'd hang at
+    // stale pixel coords while the floor/walls/cabinet shift beneath them.
+    const prev = this._lastSize;
+    if (prev && prev.w > 0 && prev.h > 0 && (prev.w !== w || prev.h !== h)) {
+      const sx = w / prev.w;
+      const sy = h / prev.h;
+      for (const body of this.items.keys()) {
+        Body.setPosition(body, { x: body.position.x * sx, y: body.position.y * sy });
+        this._paint(body);
+      }
+      if (this.items.size) this._ensureRunning(); // let them re-settle against the new geometry
+    }
+    this._lastSize = { w, h };
+
     const opt = { isStatic: true };
     this.statics.push(
       Bodies.rectangle(w / 2, h + WALL / 2, w + WALL * 2, WALL, opt), // floor
@@ -161,17 +197,47 @@ export const FreeZone = {
       Bodies.rectangle(w + WALL / 2, h / 2, WALL, h * 3, opt) // right wall
     );
 
-    // Solid box for the rack cabinet, so devices pile on top of and beside it.
+    // Map a zoom-scaled client rect into unscaled zone-local space and add it as
+    // a solid obstacle, so devices pile on top of and beside it.
+    const addObstacle = (r) => {
+      if (!r.width || !r.height) return;
+      this.statics.push(
+        Bodies.rectangle(
+          (r.left - rect.left) / z + r.width / z / 2,
+          (r.top - rect.top) / z + r.height / z / 2,
+          r.width / z,
+          r.height / z,
+          opt
+        )
+      );
+    };
+
+    // The rack cabinet itself, plus the bumpy handles on its top edge — those
+    // stick up above the cabinet, so devices can perch on and between them.
     const cab = document.querySelector('.rack-cabinet');
-    if (cab) {
-      const cr = cab.getBoundingClientRect();
-      if (cr.width && cr.height) {
-        this.statics.push(
-          Bodies.rectangle(cr.left - rect.left + cr.width / 2, cr.top - rect.top + cr.height / 2, cr.width, cr.height, opt)
-        );
-      }
-    }
+    if (cab) addObstacle(cab.getBoundingClientRect());
+    document.querySelectorAll('.rack-top-handles .industrial-handle').forEach((handle) => addObstacle(handle.getBoundingClientRect()));
+
     Composite.add(this.engine.world, this.statics);
+  },
+
+  /**
+   * Flip the scene left↔right to match the rack's front/rear toggle. The rear is
+   * a mirror of the front, so a device sitting on the right must move to the left
+   * (mirror x about the zone centre) — otherwise the scene is physically
+   * inconsistent with the flipped rack. Angle and horizontal momentum mirror too.
+   */
+  mirror() {
+    if (!this.zone || this.items.size === 0) return;
+    const { w } = this._metrics();
+    for (const body of this.items.keys()) {
+      Body.setPosition(body, { x: w - body.position.x, y: body.position.y });
+      Body.setAngle(body, -body.angle);
+      Body.setVelocity(body, { x: -body.velocity.x, y: body.velocity.y });
+      this._paint(body);
+    }
+    this._ensureRunning(); // let the stack re-settle against the mirrored cabinet
+    this.app?.persistFreeSoon();
   },
 
   /* -------------------------------------------------------- Pick up / drop */
@@ -185,13 +251,13 @@ export const FreeZone = {
     const body = el?._body;
     const item = body && this.items.get(body);
     if (!item) return null;
-    const rect = this.zone.getBoundingClientRect();
+    const { w, h } = this._metrics();
     this.lifted = {
       el,
       type: item.type,
       fills: item.fills,
-      nx: clamp01(body.position.x / (rect.width || 1)),
-      ny: clamp01(body.position.y / (rect.height || 1)),
+      nx: clamp01(body.position.x / w),
+      ny: clamp01(body.position.y / h),
       angle: body.angle,
     };
     el.classList.add('lifted');
@@ -219,9 +285,10 @@ export const FreeZone = {
   respawn(clientX, clientY) {
     if (!this.lifted) return;
     const { type, fills } = this.lifted;
-    const rect = this.zone.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
-    const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+    const { w, h } = this._metrics();
+    const local = this._toLocal(clientX, clientY);
+    const x = Math.max(0, Math.min(w, local.x));
+    const y = Math.max(0, Math.min(h, local.y));
     this.lifted.el.remove();
     this.lifted = null;
     this._add(type, x, y, 0, fills);
@@ -235,8 +302,8 @@ export const FreeZone = {
     const { el, type, fills, nx, ny, angle } = this.lifted;
     el.remove();
     this.lifted = null;
-    const rect = this.zone.getBoundingClientRect();
-    this._add(type, nx * rect.width, ny * rect.height, angle, fills);
+    const { w, h } = this._metrics();
+    this._add(type, nx * w, ny * h, angle, fills);
     this._ensureRunning();
     this.app?.persistFreeSoon();
   },

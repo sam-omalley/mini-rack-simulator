@@ -556,6 +556,9 @@ export const App = {
       e.preventDefault();
       slot.classList.remove('drag-over');
       this.handleDrop(slot, this.fine(e));
+      // A successful dock removes the drag source, so its `dragend` never fires
+      // and endDrag() wouldn't run — finish the drag explicitly here instead.
+      if (this._dropHandled) this.endDrag();
     });
 
     // Free-positioning easter egg: dropping a device on the stage but OUTSIDE any
@@ -568,6 +571,9 @@ export const App = {
       if (e.target.closest('.slot') || !this.draggedEl) return;
       e.preventDefault();
       this.dropIntoFreeZone(e);
+      // Spawning/respawning can replace the drag source, killing its `dragend`;
+      // end the drag explicitly so the bin and drag state always reset.
+      if (this._dropHandled) this.endDrag();
     });
 
     this.bindDeleteZones();
@@ -1280,10 +1286,11 @@ export const App = {
     document.getElementById('btn-redo').addEventListener('click', () => this.redo());
 
     document.getElementById('btn-clear').addEventListener('click', () => {
-      if (this.getState().rack.length === 0 && this.connections.length === 0) return;
+      if (this.getState().rack.length === 0 && this.connections.length === 0 && FreeZone.count() === 0) return;
       if (confirm('Clear the entire rack?')) {
         document.querySelectorAll('.slot .device').forEach((d) => d.remove());
         this.connections = [];
+        FreeZone.clear(); // also sweep away any fallen free devices
         this.commit();
       }
     });
@@ -1411,6 +1418,9 @@ export const App = {
         e.preventDefault();
         el.classList.remove('drag-over');
         this.deleteDragged();
+        // Deleting removes the drag source before `dragend` can fire; end the
+        // drag here so the bin hides and drag state resets.
+        this.endDrag();
       });
     };
     asDeleteTarget(document.getElementById('drag-bin'));
@@ -1501,8 +1511,10 @@ export const App = {
 
   toggleFace() {
     const rear = this.$wrapper.classList.toggle('rear-view');
-    // Fallen devices flip with the rack, so the whole scene shares one face.
+    // Fallen devices flip with the rack, so the whole scene shares one face...
     document.getElementById('free-zone')?.classList.toggle('rear-view', rear);
+    // ...and mirror their positions left↔right, since the rear is a mirror image.
+    FreeZone.mirror();
     const btn = document.getElementById('btn-face');
     btn.textContent = rear ? '🔀 Rear' : '🔀 Front';
     btn.setAttribute('aria-pressed', String(rear));
@@ -1512,6 +1524,16 @@ export const App = {
     this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z * 10) / 10));
     this.$wrapper.style.transform = `scale(${this.zoom})`;
     this.$wrapper.style.transformOrigin = 'top center';
+    // Scale the physics playground in lock-step with the rack so fallen devices
+    // zoom too. Its origin is the rack-wrapper's top-centre (the wrapper sits
+    // `offsetTop` below the zone's top edge), so both layers scale about the
+    // same physical point and stay aligned. FreeZone maps client↔sim coords
+    // through this.zoom, so its simulation stays in unscaled space.
+    const zone = document.getElementById('free-zone');
+    if (zone) {
+      zone.style.transform = `scale(${this.zoom})`;
+      zone.style.transformOrigin = `50% ${this.$wrapper.offsetTop}px`;
+    }
     document.getElementById('zoom-label').textContent = `${Math.round(this.zoom * 100)}%`;
     this.requestRedraw();
     FreeZone.syncBounds();
