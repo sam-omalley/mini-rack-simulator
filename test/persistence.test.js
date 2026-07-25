@@ -41,3 +41,33 @@ describe('Persistence normalize (via fromJSON)', () => {
     expect(s.connections[0]).toEqual({ from: 'a', to: 'b' });
   });
 });
+
+describe('Persistence normalize — free-positioned devices (#43)', () => {
+  it('round-trips free devices, clamping coordinates and defaulting angle', () => {
+    const s = Persistence.fromJSON(
+      JSON.stringify({
+        free: [
+          { type: 'usw-flex', nx: 0.4, ny: 0.9, angle: 1.2 },
+          { type: 'blank', nx: 5, ny: -3 }, // out-of-range → clamped, angle defaults 0
+        ],
+      })
+    );
+    expect(s.free).toHaveLength(2);
+    expect(s.free[0]).toEqual({ type: 'usw-flex', nx: 0.4, ny: 0.9, angle: 1.2 });
+    expect(s.free[1]).toEqual({ type: 'blank', nx: 1, ny: 0, angle: 0 });
+  });
+
+  it('sanitizes free-device bay fills and drops malformed entries', () => {
+    const s = Persistence.fromJSON(
+      JSON.stringify({
+        free: [{ type: 'drive-cage-6', nx: 0.5, ny: 0.5, fills: ['hdd-2tb', '', null] }, { nx: 0.1 }, null, 'x'],
+      })
+    );
+    expect(s.free).toHaveLength(1);
+    expect(s.free[0].fills).toEqual(['hdd-2tb', null, null]);
+  });
+
+  it('defaults free to an empty array when absent', () => {
+    expect(Persistence.fromJSON(JSON.stringify({ maxU: 4 })).free).toEqual([]);
+  });
+});

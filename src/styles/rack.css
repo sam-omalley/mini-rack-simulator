@@ -1,9 +1,54 @@
 .rack-wrapper-container {
+  position: relative;
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 40px 0;
+  /* Extra headroom above the rack gives the physics playground room to breathe. */
+  padding: 90px 0 40px;
   overflow: visible;
+}
+
+/* Free-positioning easter egg (issue #43): a physics playground overlaying the
+   stage. The layer itself ignores pointer events so the rack underneath stays
+   fully interactive; only the free devices opt back in so they can be dragged. */
+.free-zone {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* Scoped with `.free-zone` so width beats the base `.device { width: 100% }`. */
+.free-zone .free-device {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 240px;
+  pointer-events: auto;
+  cursor: grab;
+  will-change: transform;
+  filter: drop-shadow(0 6px 10px rgba(9, 13, 22, 0.35));
+  touch-action: none;
+}
+.free-zone .free-device.dragging {
+  cursor: grabbing;
+  filter: drop-shadow(0 12px 18px rgba(9, 13, 22, 0.5));
+}
+/* Route pointer interaction to the device root (native drag), never to inner
+   ports or label inputs. */
+.free-zone .free-device * {
+  pointer-events: none;
+}
+/* Hidden placeholder while the device is being dragged out of the simulation. */
+.free-zone .free-device.lifted {
+  visibility: hidden;
+}
+/* Fallen devices flip with the rack when the front/rear view is toggled. */
+.free-zone.rear-view .free-device .device-body {
+  display: none;
+}
+.free-zone.rear-view .free-device .device-rear {
+  display: flex;
 }
 
 .rack-wrapper {

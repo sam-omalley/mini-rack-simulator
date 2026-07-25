@@ -31,6 +31,60 @@
   margin: 0 auto;
   align-items: start;
 }
+/* Collapsing a side panel hands its width to the center stage (more play room). */
+.workspace.left-collapsed {
+  grid-template-columns: 0 minmax(400px, 1fr) 280px;
+}
+.workspace.right-collapsed {
+  grid-template-columns: 360px minmax(400px, 1fr) 0;
+}
+.workspace.left-collapsed.right-collapsed {
+  grid-template-columns: 0 1fr 0;
+}
+.workspace.left-collapsed .sidebar {
+  display: none;
+}
+.workspace.right-collapsed .right-bar {
+  display: none;
+}
+
+/* Drag-to-delete bin: floats at the bottom, only while a device is in flight. */
+.drag-bin {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: var(--radius);
+  border: 2px dashed var(--accent-red);
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow-panel);
+  pointer-events: auto;
+}
+.drag-bin[hidden] {
+  display: none;
+}
+.drag-bin-icon {
+  font-size: 20px;
+}
+.drag-bin.drag-over {
+  background: var(--accent-red);
+  color: #fff;
+  transform: translateX(-50%) scale(1.06);
+}
+/* Dropping onto a side panel ("back to the library") also deletes. */
+.sidebar.drag-over,
+.right-bar.drag-over {
+  outline: 2px dashed var(--accent-red);
+  outline-offset: -6px;
+}
 
 .panel {
   background-color: var(--panel-bg);

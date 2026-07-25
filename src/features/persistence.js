@@ -127,9 +127,24 @@ function normalize(data) {
         })
     : [];
   const custom = Array.isArray(data?.custom) ? data.custom.filter((d) => d && typeof d.type === 'string' && Array.isArray(d.ports)) : [];
-  return { maxU, rack, connections, custom };
+  // Free-positioned devices (physics easter egg): normalized centre + angle.
+  const free = Array.isArray(data?.free)
+    ? data.free
+        .filter((f) => f && typeof f.type === 'string')
+        .map((f) => {
+          const item = { type: f.type, nx: clampUnit(f.nx), ny: clampUnit(f.ny), angle: Number(f.angle) || 0 };
+          if (Array.isArray(f.fills)) item.fills = f.fills.map((k) => (typeof k === 'string' && k ? k : null));
+          return item;
+        })
+    : [];
+  return { maxU, rack, connections, custom, free };
 }
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
+}
+
+function clampUnit(n) {
+  const x = Number(n);
+  return Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
 }

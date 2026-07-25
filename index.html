@@ -76,6 +76,16 @@
       <!-- Rack stage -->
       <section class="center-stage" id="rack-stage" aria-label="Rack">
         <div class="stage-controls" role="toolbar" aria-label="Rack view controls">
+          <button
+            id="btn-collapse-left"
+            class="btn btn-icon"
+            type="button"
+            aria-pressed="false"
+            title="Collapse the device library for more play space"
+            aria-label="Collapse device library"
+          >
+            ⟨
+          </button>
           <button id="btn-zoom-out" class="btn btn-icon" type="button" aria-label="Zoom out">−</button>
           <span id="zoom-label" class="zoom-label" aria-live="polite">100%</span>
           <button id="btn-zoom-in" class="btn btn-icon" type="button" aria-label="Zoom in">+</button>
@@ -91,6 +101,16 @@
             title="Toggle the fine ½U grid — snap placement to half-units (G)"
           >
             ▦ ½U grid
+          </button>
+          <button
+            id="btn-collapse-right"
+            class="btn btn-icon"
+            type="button"
+            aria-pressed="false"
+            title="Collapse the details panel for more play space"
+            aria-label="Collapse details panel"
+          >
+            ⟩
           </button>
         </div>
         <div class="rack-wrapper-container">
@@ -114,6 +134,9 @@
               <div class="slots-container" id="slots-container" role="list" aria-label="Rack units"></div>
             </div>
           </div>
+          <!-- Free-positioning easter egg: devices dropped outside the rack fall
+               and stack here under a 2D physics engine (see features/freeZone.js). -->
+          <div class="free-zone" id="free-zone" aria-hidden="true"></div>
         </div>
       </section>
 
@@ -225,6 +248,12 @@
         </div>
       </aside>
     </main>
+
+    <!-- Drag-to-delete target; shown only while a placed/fallen device is dragged. -->
+    <div id="drag-bin" class="drag-bin" hidden aria-hidden="true">
+      <span class="drag-bin-icon">🗑️</span>
+      <span class="drag-bin-label">Drop here to delete</span>
+    </div>
 
     <dialog id="device-modal" class="modal" aria-label="New custom device">
       <form id="device-form" class="modal-form">
