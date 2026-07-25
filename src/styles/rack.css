@@ -3,8 +3,9 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  /* Extra headroom above the rack gives the physics playground room to breathe. */
-  padding: 90px 0 40px;
+  /* Generous headroom above the rack: that space is the playground, so there has
+     to be room to drop and stack things well clear of the rack's top. */
+  padding: 200px 0 40px;
   overflow: visible;
   /* Camera layer: a single zoom transform here scales the rack and the physics
      playground together (see App.setZoom). Applied instantly — the physics

@@ -27,7 +27,9 @@ export const FreeZone = {
   engine: null,
   runner: null,
   items: new Map(), // body -> { el, type, fills }
-  statics: [],
+  statics: [], // every static body (walls, floor, obstacles)
+  obstacles: [], // just the rack + its handles — things worth lifting out of
+  bounds: null, // { leftX, rightX, floorY } in world coordinates
   lifted: null, // the device currently picked up (removed from simulation)
   _running: false,
   _calmTicks: 0,
@@ -134,10 +136,12 @@ export const FreeZone = {
     const w = el.offsetWidth || 240;
     const h = el.offsetHeight || 38;
 
-    // Keep the whole device within the side walls, so it can never spawn
-    // overlapping one (which straight-up lifting couldn't resolve).
-    const zone = this._metrics();
-    const cx = Math.max(w / 2, Math.min(zone.w - w / 2, x));
+    // Clamp into the side walls rather than letting a half-overlapping drop
+    // resolve vertically — being pushed inside the play area is what you expect,
+    // where lifting out of a wall would launch the device off the top.
+    const left = this.bounds ? this.bounds.leftX : 0;
+    const right = this.bounds ? this.bounds.rightX : this._metrics().w;
+    const cx = left + w / 2 > right - w / 2 ? (left + right) / 2 : Math.max(left + w / 2, Math.min(right - w / 2, x));
     const cy = Math.max(h / 2, y);
 
     const body = Bodies.rectangle(cx, cy, w, h, { ...BODY_OPTS, angle });
@@ -205,10 +209,19 @@ export const FreeZone = {
     if (!this.engine || !this.zone) return;
     for (const s of this.statics) Composite.remove(this.engine.world, s);
     this.statics = [];
+    this.obstacles = [];
 
     this._sizeZone();
     const { rect, z, w, h } = this._metrics();
     if (rect.width === 0 || rect.height === 0) return;
+
+    // Map a zoom-scaled client rect into unscaled world coordinates.
+    const toWorld = (r) => ({
+      left: (r.left - rect.left) / z,
+      top: (r.top - rect.top) / z,
+      width: r.width / z,
+      height: r.height / z,
+    });
 
     // Side walls sit at the inner edge of whichever panel is showing, and slide
     // out to the world edge when it's collapsed — so collapsing a panel simply
@@ -217,41 +230,69 @@ export const FreeZone = {
     const edgeOf = (sel, side) => {
       const el = document.querySelector(sel);
       if (!el || el.offsetParent === null) return side === 'left' ? 0 : w;
-      const r = el.getBoundingClientRect();
-      return ((side === 'left' ? r.right : r.left) - rect.left) / z;
+      const r = toWorld(el.getBoundingClientRect());
+      return side === 'left' ? r.left + r.width : r.left;
     };
     const leftX = Math.max(0, Math.min(w, edgeOf('.sidebar', 'left')));
     const rightX = Math.max(0, Math.min(w, edgeOf('.right-bar', 'right')));
 
+    // The floor is level with the foot of the rack, not the foot of the window,
+    // so fallen devices settle on the same groundline the rack stands on (and
+    // stay glued to it through zoom, since both live in world space).
+    const cab = document.querySelector('.rack-cabinet');
+    const cabWorld = cab ? toWorld(cab.getBoundingClientRect()) : null;
+    const floorY = cabWorld ? cabWorld.top + cabWorld.height : h;
+    this.bounds = { leftX, rightX, floorY };
+
     const opt = { isStatic: true };
     this.statics.push(
-      Bodies.rectangle(w / 2, h + WALL / 2, w + WALL * 2, WALL, opt), // floor
-      Bodies.rectangle(leftX - WALL / 2, h / 2, WALL, h * 3, opt), // left wall
-      Bodies.rectangle(rightX + WALL / 2, h / 2, WALL, h * 3, opt) // right wall
+      Bodies.rectangle(w / 2, floorY + WALL / 2, w + WALL * 2, WALL, opt), // floor
+      Bodies.rectangle(leftX - WALL / 2, floorY - h, WALL, h * 3, opt), // left wall
+      Bodies.rectangle(rightX + WALL / 2, floorY - h, WALL, h * 3, opt) // right wall
     );
 
-    // Map a zoom-scaled client rect into unscaled zone-local space and add it as
-    // a solid obstacle, so devices pile on top of and beside it.
+    // Obstacles are tracked separately from the walls/floor: only these are worth
+    // lifting a freshly-dropped device out of (see _liftClear). The rack cabinet,
+    // plus the bumpy handles on its top edge, which stick up above it so devices
+    // can perch on and between them.
     const addObstacle = (r) => {
       if (!r.width || !r.height) return;
-      this.statics.push(
-        Bodies.rectangle(
-          (r.left - rect.left) / z + r.width / z / 2,
-          (r.top - rect.top) / z + r.height / z / 2,
-          r.width / z,
-          r.height / z,
-          opt
-        )
-      );
+      const b = Bodies.rectangle(r.left + r.width / 2, r.top + r.height / 2, r.width, r.height, opt);
+      this.obstacles.push(b);
+      this.statics.push(b);
     };
-
-    // The rack cabinet itself, plus the bumpy handles on its top edge — those
-    // stick up above the cabinet, so devices can perch on and between them.
-    const cab = document.querySelector('.rack-cabinet');
-    if (cab) addObstacle(cab.getBoundingClientRect());
-    document.querySelectorAll('.rack-top-handles .industrial-handle').forEach((handle) => addObstacle(handle.getBoundingClientRect()));
+    if (cabWorld) addObstacle(cabWorld);
+    document
+      .querySelectorAll('.rack-top-handles .industrial-handle')
+      .forEach((handle) => addObstacle(toWorld(handle.getBoundingClientRect())));
 
     Composite.add(this.engine.world, this.statics);
+    this._confineAll();
+  },
+
+  /**
+   * Keep every device inside the current side walls. Called whenever the bounds
+   * change so that a panel sliding back in shoves what it would have covered —
+   * settled stacks included — rather than leaving devices stranded underneath it.
+   */
+  _confineAll() {
+    if (!this.bounds || this.items.size === 0) return;
+    const { leftX, rightX } = this.bounds;
+    let moved = false;
+    for (const body of this.items.keys()) {
+      const half = (body.bounds.max.x - body.bounds.min.x) / 2;
+      // A device wider than the gap gets centred rather than fought over.
+      const min = leftX + half;
+      const max = rightX - half;
+      const x = min > max ? (leftX + rightX) / 2 : Math.max(min, Math.min(max, body.position.x));
+      if (Math.abs(x - body.position.x) > 0.01) {
+        Body.setPosition(body, { x, y: body.position.y });
+        Body.setVelocity(body, { x: 0, y: body.velocity.y });
+        this._paint(body);
+        moved = true;
+      }
+    }
+    if (moved) this._ensureRunning();
   },
 
   /**
@@ -274,16 +315,18 @@ export const FreeZone = {
   },
 
   /**
-   * Lift a freshly-placed body straight up until it no longer overlaps a static
-   * (the rack, its handles, the floor). Matter leaves a body wedged when it
-   * spawns deep inside a collider, so we resolve it up front — deterministically
-   * and vertically only, so it lands cleanly on top instead of drifting sideways
-   * or staying stuck. Horizontal overlap with the off-screen walls is avoided by
-   * clamping the spawn x in `_add`, so straight-up always clears.
+   * Lift a freshly-placed body straight up until it no longer overlaps the rack
+   * or its handles. Matter leaves a body wedged when it spawns deep inside a
+   * collider, so we resolve it up front — deterministically and vertically only,
+   * so it lands cleanly on top instead of drifting sideways or staying stuck.
+   *
+   * Only obstacles are considered: the side walls are effectively infinite, so
+   * lifting out of one would fling the device into the sky. Horizontal overlap
+   * is handled by clamping into the bounds instead (see `_add`/`_confineAll`).
    */
   _liftClear(body) {
     for (let iter = 0; iter < 40; iter++) {
-      const hits = Query.collides(body, this.statics);
+      const hits = Query.collides(body, this.obstacles);
       if (!hits.length) return;
       // Rise above the highest (smallest top-y) collider we're currently inside.
       let topY = Infinity;
