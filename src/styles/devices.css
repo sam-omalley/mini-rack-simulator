@@ -360,31 +360,10 @@ body.dark-mode .device:not(.placed) {
   box-shadow: 0 0 3px rgba(0, 85, 255, 0.35);
 }
 
-.delete-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  z-index: 1000;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-red);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: bold;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-}
 .dup-btn {
   position: absolute;
   top: -6px;
-  right: 16px;
+  right: -6px;
   z-index: 1000;
   width: 18px;
   height: 18px;
@@ -401,8 +380,6 @@ body.dark-mode .device:not(.placed) {
   cursor: pointer;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
-.device.placed:hover .delete-btn,
-.device.placed:focus-within .delete-btn,
 .device.placed:hover .dup-btn,
 .device.placed:focus-within .dup-btn {
   display: flex;

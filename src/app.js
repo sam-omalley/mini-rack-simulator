@@ -8,6 +8,7 @@ import { classifyConnection, rackByU } from './render/cableClassify.js';
 import { STEP, snapAnchor, moveStep, halfRows } from './render/grid.js';
 import { parsePortId, portU, makePortId } from './utils/ports.js';
 import { Persistence } from './features/persistence.js';
+import { FreeZone } from './features/freeZone.js';
 import { computeBom, bomToCsv } from './features/bom.js';
 import { computeSchedule, scheduleToCsv } from './features/cableSchedule.js';
 import { Pricing, priceFn } from './features/pricing.js';
@@ -62,6 +63,7 @@ export const App = {
     this.bindGlobalControls();
     this.bindDelegatedEvents();
     CableManager.init(this);
+    FreeZone.init(this);
 
     // Priority: shared URL > saved session > empty rack.
     const initial = Persistence.loadFromUrl() || Persistence.load() || { maxU: 6, rack: [], connections: [] };
@@ -73,6 +75,7 @@ export const App = {
     this.$slots = document.getElementById('slots-container');
     this.$svg = document.getElementById('cable-svg');
     this.$wrapper = document.getElementById('rack-wrapper');
+    this.$camera = document.querySelector('.rack-wrapper-container');
     this.$report = document.getElementById('report-list');
     this.$power = document.getElementById('power-summary');
     this.$cableBreakdown = document.getElementById('cable-breakdown');
@@ -146,7 +149,11 @@ export const App = {
       this.fromSidebar = true;
       e.dataTransfer.effectAllowed = 'copy';
       card.classList.add('dragging');
-      this.beginDrag(type);
+      // The sidebar isn't zoomed, so the native drag image would preview at 100%
+      // even when the rack is scaled — match the zoom so it looks like the drop.
+      // At 100% the native image is already correct, so skip the custom ghost.
+      if (this.zoom !== 1) this.setScaledDragImage(e, card.querySelector('.device'));
+      this.beginDrag(type, 'sidebar');
     });
     card.addEventListener('dragend', () => {
       card.classList.remove('dragging');
@@ -533,6 +540,8 @@ export const App = {
         </div>`;
       this.$slots.appendChild(row);
     }
+    // Rack height just changed — resync the physics obstacle for the cabinet.
+    FreeZone.syncBounds();
   },
 
   bindDelegatedEvents() {
@@ -552,15 +561,30 @@ export const App = {
       e.preventDefault();
       slot.classList.remove('drag-over');
       this.handleDrop(slot, this.fine(e));
+      // A successful dock removes the drag source, so its `dragend` never fires
+      // and endDrag() wouldn't run — finish the drag explicitly here instead.
+      if (this._dropHandled) this.endDrag();
     });
 
-    // Tap-to-place, device select, duplicate, delete.
+    // Free-positioning easter egg: dropping a device on the stage but OUTSIDE any
+    // rack slot drops it into the physics playground (issue #43).
+    const stage = document.getElementById('rack-stage');
+    stage.addEventListener('dragover', (e) => {
+      if (this.draggedEl && !e.target.closest('.slot')) e.preventDefault();
+    });
+    stage.addEventListener('drop', (e) => {
+      if (e.target.closest('.slot') || !this.draggedEl) return;
+      e.preventDefault();
+      this.dropIntoFreeZone(e);
+      // Spawning/respawning can replace the drag source, killing its `dragend`;
+      // end the drag explicitly so the bin and drag state always reset.
+      if (this._dropHandled) this.endDrag();
+    });
+
+    this.bindDeleteZones();
+
+    // Tap-to-place, device select, duplicate.
     this.$slots.addEventListener('click', (e) => {
-      const del = e.target.closest('[data-action="delete"]');
-      if (del) {
-        this.removeDevice(del.closest('.device'));
-        return;
-      }
       const dup = e.target.closest('[data-action="duplicate"]');
       if (dup) {
         this.selectDevice(dup.closest('.device'), false);
@@ -590,9 +614,9 @@ export const App = {
       if (!device) return;
       this.draggedEl = device;
       this.fromSidebar = false;
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = 'copyMove';
       device.classList.add('dragging');
-      this.beginDrag(device.dataset.type);
+      this.beginDrag(device.dataset.type, 'placed');
     });
     this.$slots.addEventListener('dragend', (e) => {
       e.target.closest('.device.placed')?.classList.remove('dragging');
@@ -651,8 +675,24 @@ export const App = {
 
   handleDrop(slot, fine = false) {
     const dropU = Number(slot.dataset.u);
-    if (this.fromSidebar && this.draggedEl) {
+    if (this.dragOrigin === 'sidebar' && this.draggedEl) {
       this.placeType(this.draggedEl.dataset.deviceType, dropU, fine);
+      this._dropHandled = true;
+    } else if (this.dragOrigin === 'free') {
+      // A lifted free device docking into the rack — identical to a fresh place.
+      const type = FreeZone.liftedType();
+      const u = snapAnchor(dropU, uHeightOf(type), fine);
+      if (!this.canPlace(u, uHeightOf(type))) {
+        Toast.show(`Can't place here — needs ${uHeightOf(type)}U of free space.`);
+        return; // unhandled → endDrag drops it back into the playground
+      }
+      const dev = createDevice(type, u);
+      const fills = FreeZone.liftedFills();
+      this.slot(u).appendChild(dev);
+      if (fills) dev.querySelectorAll('.carrier-bay').forEach((bay, i) => applyBayFill(bay, fills[i] || null));
+      FreeZone.dropRemoved();
+      this._dropHandled = true;
+      this.commit();
     } else if (this.draggedEl?.classList.contains('placed')) {
       const type = this.draggedEl.dataset.type;
       const u = snapAnchor(dropU, uHeightOf(type), fine);
@@ -662,7 +702,30 @@ export const App = {
       }
       this.slot(u).appendChild(this.draggedEl);
       this.rebindPorts(this.draggedEl, u);
+      this._dropHandled = true;
       this.commit();
+    }
+  },
+
+  /**
+   * Drop a device into the free-positioning playground. A sidebar drag spawns a
+   * fresh copy; a placed device is lifted off the rack; a lifted free device
+   * simply falls again from the new spot.
+   */
+  dropIntoFreeZone(e) {
+    if (this.dragOrigin === 'sidebar') {
+      if (FreeZone.spawn(this.draggedEl.dataset.deviceType, e.clientX, e.clientY)) this._dropHandled = true;
+    } else if (this.dragOrigin === 'free') {
+      FreeZone.respawn(e.clientX, e.clientY);
+      this._dropHandled = true;
+    } else if (this.draggedEl?.classList.contains('placed')) {
+      const dev = this.draggedEl;
+      const fills = [...dev.querySelectorAll('.carrier-bay')].map((b) => b.dataset.fill || null);
+      this.detachConnections(dev);
+      dev.remove();
+      // spawn() commits, capturing both the removal and the new free device.
+      FreeZone.spawn(dev.dataset.type, e.clientX, e.clientY, fills.length ? fills : null);
+      this._dropHandled = true;
     }
   },
 
@@ -817,12 +880,21 @@ export const App = {
         return item;
       })
       .sort((a, b) => b.u - a.u);
+    // Free-positioned devices (the physics easter egg) live outside the rack.
+    const free = FreeZone.serialize();
     return {
       maxU: this.maxU,
       rack,
       connections: structuredClone(this.connections),
-      custom: CustomDevices.usedBy(rack),
+      custom: CustomDevices.usedBy([...rack, ...free]),
+      free,
     };
+  },
+
+  /** Debounced autosave for physics settling, which never enters undo history. */
+  persistFreeSoon() {
+    clearTimeout(this._freeSaveTimer);
+    this._freeSaveTimer = setTimeout(() => Persistence.save(this.getState()), 400);
   },
 
   /** Rebuild the rack DOM from a state object. */
@@ -846,6 +918,8 @@ export const App = {
         dev.querySelectorAll('.carrier-bay').forEach((bay, idx) => applyBayFill(bay, item.fills[idx] || null));
       }
     });
+
+    FreeZone.load(state.free || []);
 
     this.connections = structuredClone(state.connections);
     if (resetHistory) {
@@ -1210,14 +1284,18 @@ export const App = {
     document.getElementById('btn-zoom-reset').addEventListener('click', () => this.setZoom(1));
     document.getElementById('btn-face').addEventListener('click', () => this.toggleFace());
 
+    document.getElementById('btn-collapse-left').addEventListener('click', (e) => this.toggleSidebar('left', e.currentTarget));
+    document.getElementById('btn-collapse-right').addEventListener('click', (e) => this.toggleSidebar('right', e.currentTarget));
+
     document.getElementById('btn-undo').addEventListener('click', () => this.undo());
     document.getElementById('btn-redo').addEventListener('click', () => this.redo());
 
     document.getElementById('btn-clear').addEventListener('click', () => {
-      if (this.getState().rack.length === 0 && this.connections.length === 0) return;
+      if (this.getState().rack.length === 0 && this.connections.length === 0 && FreeZone.count() === 0) return;
       if (confirm('Clear the entire rack?')) {
         document.querySelectorAll('.slot .device').forEach((d) => d.remove());
         this.connections = [];
+        FreeZone.clear(); // also sweep away any fallen free devices
         this.commit();
       }
     });
@@ -1276,14 +1354,136 @@ export const App = {
     this.$slots.classList.toggle('show-half', Boolean(show));
   },
 
-  beginDrag(type) {
+  beginDrag(type, origin = 'sidebar') {
+    this.dragOrigin = origin;
+    this._dropHandled = false;
+    this._dragLeftWindow = false;
+    // The bin is a delete affordance — only meaningful for something already placed.
+    if (origin !== 'sidebar') document.getElementById('drag-bin')?.removeAttribute('hidden');
     this._fractionalDrag = !Number.isInteger(uHeightOf(type));
     this.refreshHalfGrid();
   },
 
   endDrag() {
+    // Resolve an unhandled release: off-window deletes; a lifted free device that
+    // found no home falls back into the playground.
+    if (!this._dropHandled) {
+      if (this._dragLeftWindow) this.deleteDragged();
+      else if (this.dragOrigin === 'free') FreeZone.cancelDrag();
+    }
+    document.getElementById('drag-bin')?.setAttribute('hidden', '');
+    document.getElementById('drag-bin')?.classList.remove('drag-over');
+    this.dragOrigin = null;
+    this._dropHandled = false;
+    this._dragLeftWindow = false;
     this._fractionalDrag = false;
     this.refreshHalfGrid();
+  },
+
+  /**
+   * Give a drag an upright drag image scaled to the current zoom. Two sources
+   * need this: a library card (its sidebar is never zoomed, so the native
+   * preview shows 100%) and a picked-up fallen device (the native preview
+   * ignores the zone's zoom transform, and would keep the body's rotation). We
+   * snapshot an upright, zoom-scaled clone so the preview matches how the device
+   * looks once dropped. Sizing uses offsetWidth/Height — the intrinsic layout
+   * size, unaffected by any ancestor CSS transform.
+   */
+  setScaledDragImage(e, deviceEl) {
+    if (!deviceEl || !e.dataTransfer) return;
+    const z = this.zoom;
+    const vis = deviceEl.getBoundingClientRect(); // visual rect, for the grab hotspot
+    const iw = deviceEl.offsetWidth || 240;
+    const ih = deviceEl.offsetHeight || 38;
+    const ghost = document.createElement('div');
+    ghost.style.cssText = `position:absolute;top:-10000px;left:-10000px;pointer-events:none;width:${iw * z}px;height:${ih * z}px;overflow:hidden;`;
+    const clone = deviceEl.cloneNode(true);
+    clone.style.position = 'static';
+    clone.style.margin = '0';
+    clone.style.left = '0';
+    clone.style.top = '0';
+    clone.style.width = `${iw}px`;
+    clone.style.opacity = '1'; // in case the source is dimmed while lifted
+    clone.style.transform = `scale(${z})`; // upright — strips any rotation
+    clone.style.transformOrigin = 'top left';
+    ghost.appendChild(clone);
+    document.body.appendChild(ghost);
+    const clamp01 = (n) => Math.max(0, Math.min(1, n));
+    const fx = vis.width ? clamp01((e.clientX - vis.left) / vis.width) : 0.5;
+    const fy = vis.height ? clamp01((e.clientY - vis.top) / vis.height) : 0.2;
+    e.dataTransfer.setDragImage(ghost, fx * iw * z, fy * ih * z);
+    setTimeout(() => ghost.remove(), 0); // remove once the browser has snapshotted it
+  },
+
+  /**
+   * Wire up drag-to-delete: the bin, the library/inspector panels, and dragging
+   * off the window all remove a placed or lifted device. Also lifts a fallen
+   * free device into a normal drag when the user picks it up.
+   */
+  bindDeleteZones() {
+    // Lifting a fallen device: mirror a fresh library drag so it can be re-racked.
+    const zone = document.getElementById('free-zone');
+    zone.addEventListener('dragstart', (e) => {
+      const el = e.target.closest('.free-device');
+      if (!el) return;
+      const info = FreeZone.beginDrag(el);
+      if (!info) return;
+      this.draggedEl = el;
+      this.fromSidebar = false;
+      e.dataTransfer.effectAllowed = 'copyMove';
+      // The native preview ignores the zone's zoom and keeps the body's tilt;
+      // use an upright, zoom-matched ghost so it matches how it'll drop.
+      this.setScaledDragImage(e, el);
+      this.beginDrag(info.type, 'free');
+    });
+    zone.addEventListener('dragend', () => this.endDrag());
+
+    // Track leaving/re-entering the window so an off-screen release deletes.
+    document.addEventListener('dragover', () => {
+      this._dragLeftWindow = false;
+    });
+    document.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget === null) this._dragLeftWindow = true;
+    });
+
+    // Explicit delete targets: the bin plus the two side panels ("back to library").
+    const asDeleteTarget = (el) => {
+      if (!el) return;
+      el.addEventListener('dragover', (e) => {
+        if (this.dragOrigin === 'placed' || this.dragOrigin === 'free') {
+          e.preventDefault();
+          el.classList.add('drag-over');
+        }
+      });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', (e) => {
+        if (this.dragOrigin !== 'placed' && this.dragOrigin !== 'free') return;
+        e.preventDefault();
+        el.classList.remove('drag-over');
+        this.deleteDragged();
+        // Deleting removes the drag source before `dragend` can fire; end the
+        // drag here so the bin hides and drag state resets.
+        this.endDrag();
+      });
+    };
+    asDeleteTarget(document.getElementById('drag-bin'));
+    asDeleteTarget(document.querySelector('.sidebar'));
+    asDeleteTarget(document.querySelector('.right-bar'));
+  },
+
+  /** Delete whatever is being dragged (a placed device or a lifted free device). */
+  deleteDragged() {
+    if (this._dropHandled) return;
+    if (this.dragOrigin === 'placed' && this.draggedEl) {
+      this.detachConnections(this.draggedEl);
+      this.draggedEl.remove();
+      this._dropHandled = true;
+      this.commit();
+    } else if (this.dragOrigin === 'free') {
+      FreeZone.dropRemoved();
+      this._dropHandled = true;
+      this.commit();
+    }
   },
 
   handleKeydown(e) {
@@ -1342,8 +1542,22 @@ export const App = {
     }
   },
 
+  /** Collapse/expand a side panel to give the physics playground more room. */
+  toggleSidebar(side, btn) {
+    const collapsed = document.querySelector('.workspace').classList.toggle(`${side}-collapsed`);
+    btn.setAttribute('aria-pressed', String(collapsed));
+    btn.textContent = collapsed ? (side === 'left' ? '⟩' : '⟨') : side === 'left' ? '⟨' : '⟩';
+    // The stage — and so the play area — just changed width.
+    FreeZone.syncBounds();
+    this.requestRedraw();
+  },
+
   toggleFace() {
     const rear = this.$wrapper.classList.toggle('rear-view');
+    // Fallen devices flip with the rack, so the whole scene shares one face...
+    document.getElementById('free-zone')?.classList.toggle('rear-view', rear);
+    // ...and mirror their positions left↔right, since the rear is a mirror image.
+    FreeZone.mirror();
     const btn = document.getElementById('btn-face');
     btn.textContent = rear ? '🔀 Rear' : '🔀 Front';
     btn.setAttribute('aria-pressed', String(rear));
@@ -1351,10 +1565,15 @@ export const App = {
 
   setZoom(z) {
     this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z * 10) / 10));
-    this.$wrapper.style.transform = `scale(${this.zoom})`;
-    this.$wrapper.style.transformOrigin = 'top center';
+    // Zoom is a pure camera operation: one transform on the container that wraps
+    // BOTH the rack and the physics playground, so they scale together about the
+    // exact same origin. The simulation itself lives in unscaled world space;
+    // FreeZone maps client↔world coordinates through this.zoom for input only.
+    this.$camera.style.transform = `scale(${this.zoom})`;
+    this.$camera.style.transformOrigin = 'top center';
     document.getElementById('zoom-label').textContent = `${Math.round(this.zoom * 100)}%`;
     this.requestRedraw();
+    FreeZone.syncBounds();
   },
 
   changeMaxU(newMaxU) {

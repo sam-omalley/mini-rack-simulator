@@ -15,8 +15,11 @@ export async function exportPNG(btn) {
   btn.disabled = true;
 
   document.querySelectorAll('.device.placed.selected').forEach((d) => d.classList.remove('selected'));
-  const savedTransform = target.style.transform;
-  target.style.transform = 'none';
+  // Zoom lives on the camera (the container that wraps the rack), so neutralise
+  // it there to capture the rack at 100%.
+  const camera = target.closest('.rack-wrapper-container') || target;
+  const savedTransform = camera.style.transform;
+  camera.style.transform = 'none';
 
   const cabinet = target.querySelector('.rack-cabinet');
   const savedShadow = cabinet.style.boxShadow;
@@ -35,7 +38,7 @@ export async function exportPNG(btn) {
     console.error(err);
     Toast.show('Screenshot failed — please try again.');
   } finally {
-    target.style.transform = savedTransform;
+    camera.style.transform = savedTransform;
     cabinet.style.boxShadow = savedShadow;
     svg.style.display = '';
     btn.textContent = original;

@@ -1,9 +1,67 @@
 .rack-wrapper-container {
+  position: relative;
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 40px 0;
+  /* Generous headroom above the rack: that space is the playground, so there has
+     to be room to drop and stack things well clear of the rack's top. */
+  padding: 200px 0 40px;
   overflow: visible;
+  /* Camera layer: a single zoom transform here scales the rack and the physics
+     playground together (see App.setZoom). Applied instantly — the physics
+     geometry is resynced synchronously on zoom, so an animated transform would
+     be read mid-flight. */
+}
+
+/* Free-positioning easter egg (issue #43): a physics playground overlaying the
+   stage. The layer itself ignores pointer events so the rack underneath stays
+   fully interactive; only the free devices opt back in so they can be dragged. */
+/* Sized in JS (FreeZone._sizeZone) to the stage divided by the camera zoom, so
+   that once the camera scales it back it covers the stage exactly — the world
+   boundary stays on the same physical edge at every zoom level. Centred to match
+   the camera's top-centre origin. */
+.free-zone {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* Scoped with `.free-zone` so width beats the base `.device { width: 100% }`. */
+.free-zone .free-device {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 240px;
+  pointer-events: auto;
+  cursor: grab;
+  will-change: transform;
+  filter: drop-shadow(0 6px 10px rgba(9, 13, 22, 0.35));
+  touch-action: none;
+}
+.free-zone .free-device.dragging {
+  cursor: grabbing;
+  filter: drop-shadow(0 12px 18px rgba(9, 13, 22, 0.5));
+}
+/* Route pointer interaction to the device root (native drag), never to inner
+   ports or label inputs. */
+.free-zone .free-device * {
+  pointer-events: none;
+}
+/* While a device is dragged out of the simulation, dim the placeholder rather
+   than hiding it — hiding leaves no drag image following the cursor. Picking a
+   fallen device up should look like dragging a fresh library card. */
+.free-zone .free-device.lifted {
+  opacity: 0.4;
+}
+/* Fallen devices flip with the rack when the front/rear view is toggled. */
+.free-zone.rear-view .free-device .device-body {
+  display: none;
+}
+.free-zone.rear-view .free-device .device-rear {
+  display: flex;
 }
 
 .rack-wrapper {
