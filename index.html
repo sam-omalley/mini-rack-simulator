@@ -73,26 +73,10 @@
         </div>
       </aside>
 
-      <!-- Rack stage -->
-      <section class="center-stage" id="rack-stage" aria-label="Rack">
-        <div class="stage-controls" role="toolbar" aria-label="Rack view controls">
-          <button id="btn-zoom-out" class="btn btn-icon" type="button" aria-label="Zoom out">−</button>
-          <span id="zoom-label" class="zoom-label" aria-live="polite">100%</span>
-          <button id="btn-zoom-in" class="btn btn-icon" type="button" aria-label="Zoom in">+</button>
-          <button id="btn-zoom-reset" class="btn" type="button">Reset</button>
-          <button id="btn-face" class="btn" type="button" aria-pressed="false" title="Flip between the front (ports) and rear (power) side">
-            🔀 Front
-          </button>
-          <button
-            id="btn-fine-grid"
-            class="btn"
-            type="button"
-            aria-pressed="false"
-            title="Toggle the fine ½U grid — snap placement to half-units (G)"
-          >
-            ▦ ½U grid
-          </button>
-        </div>
+      <!-- Rack stage: the physics world. It spans the whole workspace behind the
+           panels (which float on top); the rack is centred in it and the free
+           devices roam the full width. -->
+      <section class="stage" id="rack-stage" aria-label="Rack">
         <div class="rack-wrapper-container">
           <div class="rack-wrapper" id="rack-wrapper">
             <svg id="cable-svg" aria-hidden="true">
@@ -114,6 +98,9 @@
               <div class="slots-container" id="slots-container" role="list" aria-label="Rack units"></div>
             </div>
           </div>
+          <!-- Free-positioning easter egg: devices dropped outside the rack fall
+               and stack here under a 2D physics engine (see features/freeZone.js). -->
+          <div class="free-zone" id="free-zone" aria-hidden="true"></div>
         </div>
       </section>
 
@@ -224,7 +211,56 @@
           </div>
         </div>
       </aside>
+
+      <!-- View toolbar: floats above the stage, top-centre. -->
+      <div class="stage-controls" role="toolbar" aria-label="Rack view controls">
+        <button id="btn-zoom-out" class="btn btn-icon" type="button" aria-label="Zoom out">−</button>
+        <span id="zoom-label" class="zoom-label" aria-live="polite">100%</span>
+        <button id="btn-zoom-in" class="btn btn-icon" type="button" aria-label="Zoom in">+</button>
+        <button id="btn-zoom-reset" class="btn" type="button">Reset</button>
+        <button id="btn-face" class="btn" type="button" aria-pressed="false" title="Flip between the front (ports) and rear (power) side">
+          🔀 Front
+        </button>
+        <button
+          id="btn-fine-grid"
+          class="btn"
+          type="button"
+          aria-pressed="false"
+          title="Toggle the fine ½U grid — snap placement to half-units (G)"
+        >
+          ▦ ½U grid
+        </button>
+      </div>
+
+      <!-- Collapse rails: overlays anchored to the inner edge of each panel,
+           drawn on top of everything (including stacked devices). -->
+      <button
+        id="btn-collapse-left"
+        class="rail-toggle rail-left"
+        type="button"
+        aria-pressed="false"
+        title="Collapse the device library for more play space"
+        aria-label="Collapse device library"
+      >
+        ⟨
+      </button>
+      <button
+        id="btn-collapse-right"
+        class="rail-toggle rail-right"
+        type="button"
+        aria-pressed="false"
+        title="Collapse the details panel for more play space"
+        aria-label="Collapse details panel"
+      >
+        ⟩
+      </button>
     </main>
+
+    <!-- Drag-to-delete target; shown only while a placed/fallen device is dragged. -->
+    <div id="drag-bin" class="drag-bin" hidden aria-hidden="true">
+      <span class="drag-bin-icon">🗑️</span>
+      <span class="drag-bin-label">Drop here to delete</span>
+    </div>
 
     <dialog id="device-modal" class="modal" aria-label="New custom device">
       <form id="device-form" class="modal-form">

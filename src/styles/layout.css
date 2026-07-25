@@ -23,13 +23,95 @@
   align-items: center;
 }
 
+/* The workspace is the world. The stage spans it edge to edge and the panels
+   float on top, so collapsing a panel never moves the rack — it only uncovers
+   more of the world (and drops that side's collider). */
 .workspace {
+  /* Single source of truth for the world's height: the stage box, the physics
+     floor, and the rail toggles' vertical anchor all derive from it. */
+  --stage-h: max(640px, calc(100vh - 120px));
+  position: relative;
   display: grid;
   grid-template-columns: 360px minmax(400px, 1fr) 280px;
   gap: 25px;
   max-width: 1320px;
   margin: 0 auto;
   align-items: start;
+  min-height: 640px;
+}
+
+/* Physics world + rack, behind the panels. z-index 0 keeps it a self-contained
+   stacking context, so nothing inside it can paint over the floating panels. */
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Bounded to the window, not to the (much taller) scrollable workspace, so the
+     floor is the bottom of the visible area rather than the bottom of the page. */
+  height: var(--stage-h);
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Panels overlay the stage; they keep their grid columns so the layout reads
+   the same, but the rack underneath is centred on the workspace, not on them. */
+.sidebar {
+  grid-column: 1;
+}
+.right-bar {
+  grid-column: 3;
+}
+.sidebar,
+.right-bar {
+  position: relative;
+  z-index: 2;
+}
+@media (min-width: 1101px) {
+  .workspace.left-collapsed .sidebar {
+    display: none;
+  }
+  .workspace.right-collapsed .right-bar {
+    display: none;
+  }
+}
+
+/* Drag-to-delete bin: floats at the bottom, only while a device is in flight. */
+.drag-bin {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: var(--radius);
+  border: 2px dashed var(--accent-red);
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow-panel);
+  pointer-events: auto;
+}
+.drag-bin[hidden] {
+  display: none;
+}
+.drag-bin-icon {
+  font-size: 20px;
+}
+.drag-bin.drag-over {
+  background: var(--accent-red);
+  color: #fff;
+  transform: translateX(-50%) scale(1.06);
+}
+/* Dropping onto a side panel ("back to the library") also deletes. */
+.sidebar.drag-over,
+.right-bar.drag-over {
+  outline: 2px dashed var(--accent-red);
+  outline-offset: -6px;
 }
 
 .panel {
@@ -55,18 +137,76 @@
   border-bottom: 1px solid var(--panel-border);
 }
 
-.center-stage {
+/* Edge-anchored collapse tabs: they hug the inner edge of the panel they hide,
+   so their placement reads as "collapse this side". They float above both the
+   stage and the panels — and being pure overlays, they never take part in the
+   physics boundary. Hidden below 1101px, where collapsing isn't supported. */
+.rail-toggle {
+  position: absolute;
+  top: calc(var(--stage-h) / 2);
+  transform: translateY(-50%);
+  z-index: 3;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  min-width: 0;
+  justify-content: center;
+  width: 22px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow-panel);
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.rail-toggle:hover {
+  color: var(--text-color);
+  border-color: var(--accent-blue);
+}
+.rail-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* Anchored to each panel's inner edge, and slid out to the workspace edge when
+   that panel is collapsed. */
+.rail-left {
+  left: 360px;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  border-left: none;
+}
+.rail-right {
+  right: 280px;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  border-right: none;
+}
+.workspace.left-collapsed .rail-left {
+  left: 0;
+}
+.workspace.right-collapsed .rail-right {
+  right: 0;
+}
+@media (max-width: 1100px) {
+  .rail-toggle {
+    display: none;
+  }
 }
 
+/* View toolbar floats over the top of the stage. */
 .stage-controls {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
 }
 .zoom-label {
   min-width: 46px;

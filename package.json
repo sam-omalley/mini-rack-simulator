@@ -15,7 +15,8 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "html2canvas": "^1.4.1"
+    "html2canvas": "^1.4.1",
+    "matter-js": "^0.20.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
