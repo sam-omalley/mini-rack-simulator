@@ -30,6 +30,7 @@ export const FreeZone = {
   statics: [], // every static body (walls, floor, obstacles)
   obstacles: [], // just the rack + its handles — things worth lifting out of
   bounds: null, // { leftX, rightX, floorY } in world coordinates
+  _anchor: null, // where the rack sat last time the world was measured
   lifted: null, // the device currently picked up (removed from simulation)
   _running: false,
   _calmTicks: 0,
@@ -278,6 +279,30 @@ export const FreeZone = {
     const floorY = Math.min(cabWorld ? cabWorld.top + cabWorld.height : h, h);
     const prev = this.bounds;
     this.bounds = { leftX, rightX, floorY };
+
+    // Devices travel with the rack when the world is re-measured (issue #58).
+    // World coordinates are relative to the zone's left edge, but the rack is
+    // anchored to its CENTRE — so resizing the window slid every fallen device
+    // sideways relative to the rack, by half the width change, and knocked
+    // anything perched on top of the rack off it. Translating by however far the
+    // rack itself moved keeps the scene together: what was leaning on the rack
+    // stays leaning on it. _confineAll below then handles whatever genuinely no
+    // longer fits between the walls.
+    const anchor = cabWorld ? { x: cabWorld.left + cabWorld.width / 2, y: cabWorld.top } : { x: w / 2, y: floorY };
+    const was = this._anchor;
+    this._anchor = anchor;
+    if (was && this.items.size) {
+      const dx = anchor.x - was.x;
+      const dy = anchor.y - was.y;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        for (const body of this.items.keys()) {
+          Sleeping.set(body, false);
+          Body.setPosition(body, { x: body.position.x + dx, y: body.position.y + dy });
+          Body.setVelocity(body, { x: 0, y: 0 });
+          this._paint(body);
+        }
+      }
+    }
     // Only a real move of the walls or floor can leave a sleeping device
     // unsupported. Waking on every call instead would undo the point of letting
     // them sleep, since most calls recompute the same geometry.
