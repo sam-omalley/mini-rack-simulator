@@ -4,8 +4,10 @@
   display: flex;
   justify-content: center;
   /* Generous headroom above the rack: that space is the playground, so there has
-     to be room to drop and stack things well clear of the rack's top. */
-  padding: 200px 0 40px;
+     to be room to drop and stack things well clear of the rack's top. A tall
+     rack gives that space back rather than running off the bottom of the stage
+     — App.fitRackToStage() sets the variable (issue #63). */
+  padding: var(--rack-headroom, 200px) 0 var(--rack-footroom, 40px);
   overflow: visible;
   /* Camera layer: a single zoom transform here scales the rack and the physics
      playground together (see App.setZoom). Applied instantly — the physics

@@ -24,6 +24,13 @@ import { exportPNG } from './features/exportPng.js';
 const MAX_HISTORY = 100;
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 1.4;
+// Space above and below the rack inside the stage. The headroom is the
+// playground — room to drop things clear of the rack — but a tall rack gives it
+// up rather than running off the bottom (issue #63). MIN keeps just enough to
+// still drop a 1U device in above the rack.
+const RACK_HEADROOM_MAX = 200;
+const RACK_HEADROOM_MIN = 48;
+const RACK_FOOTROOM = 40;
 
 // Momentary fine-placement modifier read from an event. Hold-to-reveal was
 // dropped: browsers (Firefox especially) deliver Alt/Shift keydown/keyup
@@ -542,8 +549,35 @@ export const App = {
         </div>`;
       this.$slots.appendChild(row);
     }
-    // Rack height just changed — resync the physics obstacle for the cabinet.
+    // Rack height just changed — refit it to the stage, then resync the physics
+    // obstacle for the cabinet. Order matters: fitting moves the cabinet, and
+    // the floor is measured from where the cabinet ends up.
+    this.fitRackToStage();
     FreeZone.syncBounds();
+  },
+
+  /**
+   * Keep the whole rack inside the stage by trading away the playground headroom
+   * above it (issue #63). A 12U rack used to run off the bottom of the screen at
+   * 100%, and since the physics floor tracks the rack's foot but the stage clips
+   * at its own box, that left fallen devices resting on an invisible floor part
+   * way up. Short racks keep the full headroom; tall ones give it back.
+   *
+   * A rack taller than the stage even at minimum headroom still overflows —
+   * there is nowhere left to take the space from. The floor clamp in
+   * FreeZone.syncBounds keeps devices visible in that case.
+   */
+  fitRackToStage() {
+    const container = document.querySelector('.rack-wrapper-container');
+    const stage = document.getElementById('rack-stage');
+    const wrapper = document.getElementById('rack-wrapper');
+    if (!container || !stage || !wrapper) return;
+    const stageH = stage.clientHeight;
+    const rackH = wrapper.offsetHeight;
+    if (!stageH || !rackH) return;
+    const fits = stageH - rackH - RACK_FOOTROOM;
+    const headroom = Math.max(RACK_HEADROOM_MIN, Math.min(RACK_HEADROOM_MAX, fits));
+    container.style.setProperty('--rack-headroom', `${Math.round(headroom)}px`);
   },
 
   bindDelegatedEvents() {
@@ -617,6 +651,11 @@ export const App = {
       this.draggedEl = device;
       this.fromSidebar = false;
       e.dataTransfer.effectAllowed = 'copyMove';
+      // The native drag image snapshots the device at its LAYOUT size, ignoring
+      // the camera's zoom transform — so dragging a device off a zoomed-out rack
+      // produced a ghost far bigger than the thing under the cursor. Same custom
+      // ghost the library cards and free devices already use.
+      if (this.zoom !== 1) this.setScaledDragImage(e, device);
       device.classList.add('dragging');
       this.beginDrag(device.dataset.type, 'placed');
     });
@@ -1285,6 +1324,13 @@ export const App = {
   /* ----------------------------------------------------------- Controls */
 
   bindGlobalControls() {
+    // The stage is sized off the viewport, so its height changes with the
+    // window — refit the rack before FreeZone re-measures the floor from it.
+    window.addEventListener('resize', () => {
+      this.fitRackToStage();
+      FreeZone.syncBounds();
+    });
+
     document.getElementById('input-max-u').addEventListener('change', (e) => {
       let val = parseInt(e.target.value, 10);
       if (isNaN(val)) val = 6;
