@@ -81,8 +81,11 @@ export const FreeZone = {
   // a zoom change — only on a genuine layout change (resize, panel collapse,
   // rack height).
 
+  // The camera's total on-screen scale: the fit-to-stage scale times the user's
+  // zoom. Both live on the same transform, so client<->world conversion has to
+  // divide by the product, not just the user's zoom.
   _zoom() {
-    return this.app?.zoom || 1;
+    return this.app?.cameraScale?.() || 1;
   },
 
   /**
@@ -97,8 +100,16 @@ export const FreeZone = {
     if (!stage) return;
     const sr = stage.getBoundingClientRect();
     if (!sr.width || !sr.height) return;
+    // Tall enough to hold the whole scene — headroom, rack and footroom — even
+    // when that is more than the stage can show at 1:1. The camera scales the
+    // lot down to fit (App.fitCameraToStage), so the rack's foot always lands
+    // inside the world and the floor never has to be clamped short of it
+    // (issue #63). `offsetHeight` is the layout height, so it doesn't move with
+    // the camera and this stays zoom-independent.
+    const container = this.zone.parentElement;
+    const worldH = Math.max(sr.height, container?.offsetHeight || 0);
     this.zone.style.width = `${sr.width}px`;
-    this.zone.style.height = `${sr.height}px`;
+    this.zone.style.height = `${worldH}px`;
   },
 
   /** Zone rect (client, i.e. zoom-scaled) plus its unscaled logical size. */
