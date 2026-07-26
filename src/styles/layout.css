@@ -234,6 +234,35 @@
   gap: 20px;
 }
 
+/* Both columns scroll in place, and neither may make the page taller than the
+   world (issue #51). .stage is absolutely positioned inside the workspace
+   rather than pinned to the viewport, so ANY page scroll drags the whole rack
+   off screen — and the inspector, having no scroller of its own, grew to
+   whatever its stacked panels needed and did exactly that.
+   Capping both to --stage-h (not 100vh, which ignores the header above the
+   workspace) means the workspace never exceeds the world's own height, so the
+   page has nothing to scroll and the rack cannot move.
+   Desktop only: below 1101px the stage rejoins normal flow and the inspector
+   becomes a two-column grid underneath it, where scrolling with the page is
+   correct and a clipped, sticky inspector would be wrong. */
+@media (min-width: 1101px) {
+  .right-bar {
+    position: sticky;
+    top: 20px;
+    overflow-y: auto;
+    /* Room for the panels' focus rings and drag-over outline, which the scroll
+       container's edge would otherwise shave off. */
+    padding: 2px;
+    margin: -2px;
+  }
+  /* Beats the unconditional `calc(100vh - 40px)` in sidebar.css. */
+  .workspace .sidebar,
+  .right-bar {
+    max-height: var(--stage-h);
+    min-height: 0;
+  }
+}
+
 .button-group {
   display: flex;
   flex-direction: column;
