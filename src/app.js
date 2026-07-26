@@ -1573,7 +1573,13 @@ export const App = {
     // coordinates through this.zoom for input only.
     this.$camera.style.transform = `scale(${this.zoom})`;
     this.$camera.style.transformOrigin = 'top center';
-    document.getElementById('zoom-label').textContent = `${Math.round(this.zoom * 100)}%`;
+    const pct = Math.round(this.zoom * 100);
+    // The readout is also the reset control (issue #49). Its text is the live
+    // region that announces zoom changes; the button's label has to spell out
+    // both the current level and what pressing it does, since "100%" alone
+    // tells a screen-reader user nothing about the action.
+    document.getElementById('zoom-label').textContent = `${pct}%`;
+    document.getElementById('btn-zoom-reset').setAttribute('aria-label', `Zoom ${pct}%. Activate to zoom to 100%.`);
     this.requestRedraw();
   },
 
