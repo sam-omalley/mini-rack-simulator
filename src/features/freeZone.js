@@ -258,9 +258,17 @@ export const FreeZone = {
     // The floor is level with the foot of the rack, not the foot of the window,
     // so fallen devices settle on the same groundline the rack stands on (and
     // stay glued to it through zoom, since both live in world space).
+    //
+    // ...but only as far down as the world actually goes. A tall rack (10U+ on a
+    // short window) reaches past the stage, which clips at its own box, so a
+    // floor at the rack's foot would sit below the visible area and everything
+    // resting on it would be painted outside the clip and vanish (issue #55).
+    // Clamping to `h` keeps the groundline at the rack's foot whenever you can
+    // see it, and parks it at the bottom of the world when you can't. `h` is the
+    // zone's own height, so this stays zoom-independent (#46).
     const cab = document.querySelector('.rack-cabinet');
     const cabWorld = cab ? toWorld(cab.getBoundingClientRect()) : null;
-    const floorY = cabWorld ? cabWorld.top + cabWorld.height : h;
+    const floorY = Math.min(cabWorld ? cabWorld.top + cabWorld.height : h, h);
     this.bounds = { leftX, rightX, floorY };
 
     const opt = { isStatic: true };
