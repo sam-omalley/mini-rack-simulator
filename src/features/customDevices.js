@@ -51,10 +51,14 @@ export const CustomDevices = {
     DEVICE_TYPES[def.type] = def;
   },
 
-  create({ name, uHeight, ports, watts }) {
+  create({ name, uHeight, ports, watts, cooling }) {
     const cleanName = (name || '').trim() || 'Custom Device';
     const portList = Array.isArray(ports) ? ports : [];
     const w = Number(watts) || 0;
+    // A custom fan has to be declarable, or this is the one place in the app
+    // where cooling can't be expressed.
+    // Not `clamp()` — that snaps to 0.5 steps for uHeight; cooling is 0–5 whole.
+    const cool = Math.max(0, Math.min(5, Math.round(Number(cooling) || 0)));
     const def = {
       type: `custom-${slug(cleanName)}-${Date.now().toString(36)}`,
       name: cleanName,
@@ -64,7 +68,10 @@ export const CustomDevices = {
       bracketWidth: clamp(60 + portList.length * 20, 90, 280),
       watts: w,
       poeBudget: 0,
-      heatWeight: w > 20 ? 3 : w > 0 ? 1 : 0,
+      // A device that cools is a fan, so its own heat output is the noise floor
+      // rather than the wattage-derived guess used for everything else.
+      heatWeight: cool > 0 ? 0 : w > 20 ? 3 : w > 0 ? 1 : 0,
+      coolingWeight: cool,
       custom: true,
     };
     this._install(def);

@@ -457,6 +457,7 @@ export const App = {
     document.getElementById('cd-name').value = '';
     document.getElementById('cd-uheight').value = '1';
     document.getElementById('cd-watts').value = '';
+    document.getElementById('cd-cooling').value = '';
     document.getElementById('cd-ports').innerHTML = '';
     this.addPortRow();
     this.$modal.showModal();
@@ -481,6 +482,7 @@ export const App = {
     const name = document.getElementById('cd-name').value;
     const uHeight = document.getElementById('cd-uheight').value;
     const watts = document.getElementById('cd-watts').value;
+    const cooling = document.getElementById('cd-cooling').value;
 
     const ports = [];
     document.querySelectorAll('#cd-ports .port-row').forEach((row) => {
@@ -490,7 +492,7 @@ export const App = {
     });
     if (ports.length > 48) ports.length = 48;
 
-    CustomDevices.create({ name, uHeight, ports, watts });
+    CustomDevices.create({ name, uHeight, ports, watts, cooling });
     this.renderCustomSection();
     this.$modal.close();
     Toast.show('Custom device added to the library.');
@@ -1099,16 +1101,27 @@ export const App = {
     document.querySelectorAll('.slot').forEach((s) => s.classList.remove('thermal-hotspot'));
     // Two vertically touching devices whose combined heat is high form a hot spot.
     const devices = [...document.querySelectorAll('.slot .device.placed')].map((dev) => {
+      const spec = DEVICE_TYPES[dev.dataset.type];
       const u = Number(dev.parentElement.dataset.u);
       const h = uHeightOf(dev.dataset.type);
-      return { dev, u, bottom: u - h + STEP, heat: DEVICE_TYPES[dev.dataset.type].heatWeight ?? 0 };
+      return { dev, u, bottom: u - h + STEP, heat: spec.heatWeight ?? 0, cooling: spec.coolingWeight ?? 0 };
     });
+    const touching = (a, b) => a.bottom - STEP === b.u || b.bottom - STEP === a.u;
+
+    // Cooling is local, not just a rack-wide figure: a fan pulls heat off
+    // whatever it's bolted against, so mounting one between two hot devices
+    // breaks the hot spot up while parking it at the other end of the rack
+    // doesn't. Effective heat floors at 0 — a fan can't make a device cold.
+    for (const d of devices) {
+      const adjacentCooling = devices.reduce((sum, o) => (o !== d && touching(d, o) ? sum + o.cooling : sum), 0);
+      d.effectiveHeat = Math.max(0, d.heat - adjacentCooling);
+    }
+
     for (let i = 0; i < devices.length; i++) {
       for (let j = i + 1; j < devices.length; j++) {
         const a = devices[i];
         const b = devices[j];
-        const touching = a.bottom - STEP === b.u || b.bottom - STEP === a.u;
-        if (touching && a.heat + b.heat >= 6) {
+        if (touching(a, b) && a.effectiveHeat + b.effectiveHeat >= 6) {
           a.dev.parentElement.classList.add('thermal-hotspot');
           b.dev.parentElement.classList.add('thermal-hotspot');
         }
@@ -1264,6 +1277,7 @@ export const App = {
       ${metricRow('PoE load', `${poe.totalLoad} W`)}
       ${perSwitch}
       ${pduRows}
+      ${m.cooling > 0 ? metricRow('Cooling', `−${m.cooling} of ${m.grossHeat} heat`) : ''}
       ${metricRow('Thermal load', thermalLabel)}
     `;
   },
