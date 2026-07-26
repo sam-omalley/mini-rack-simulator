@@ -1567,13 +1567,14 @@ export const App = {
     this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z * 10) / 10));
     // Zoom is a pure camera operation: one transform on the container that wraps
     // BOTH the rack and the physics playground, so they scale together about the
-    // exact same origin. The simulation itself lives in unscaled world space;
-    // FreeZone maps client↔world coordinates through this.zoom for input only.
+    // exact same origin. The simulation itself lives in unscaled world space and
+    // is deliberately NOT resynced here (issue #46) — the world has fixed extents,
+    // so zooming changes only what you see. FreeZone maps client↔world
+    // coordinates through this.zoom for input only.
     this.$camera.style.transform = `scale(${this.zoom})`;
     this.$camera.style.transformOrigin = 'top center';
     document.getElementById('zoom-label').textContent = `${Math.round(this.zoom * 100)}%`;
     this.requestRedraw();
-    FreeZone.syncBounds();
   },
 
   changeMaxU(newMaxU) {
