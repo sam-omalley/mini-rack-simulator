@@ -256,12 +256,27 @@ export const FreeZone = {
     // centred on the stage, which never changes size.
     const edgeOf = (sel, side) => {
       const el = document.querySelector(sel);
-      if (!el || el.offsetParent === null) return side === 'left' ? 0 : w;
+      const open = side === 'left' ? 0 : w;
+      if (!el || el.offsetParent === null) return open;
       const r = el.getBoundingClientRect();
+      // A panel only walls the playground in if it actually sits BESIDE the
+      // stage. Below the reflow breakpoint the inspector moves underneath it
+      // (responsive.css), where it flanks nothing — and since it then starts at
+      // the stage's own left edge, measuring it as the right wall put that wall
+      // at x=0, collapsing the world to zero width and slamming every device
+      // into the corner (issue #58).
+      if (r.bottom <= rect.top || r.top >= rect.bottom) return open;
       return unzoomedX(side === 'left' ? r.right : r.left);
     };
-    const leftX = Math.max(0, Math.min(w, edgeOf('.sidebar', 'left')));
-    const rightX = Math.max(0, Math.min(w, edgeOf('.right-bar', 'right')));
+    let leftX = Math.max(0, Math.min(w, edgeOf('.sidebar', 'left')));
+    let rightX = Math.max(0, Math.min(w, edgeOf('.right-bar', 'right')));
+    // Never let the walls cross. A degenerate gap is worse than no walls at all:
+    // _confineAll centres every device on it, so one bad measurement piles the
+    // whole playground into a single point.
+    if (leftX >= rightX) {
+      leftX = 0;
+      rightX = w;
+    }
 
     // The floor is level with the foot of the rack, not the foot of the window,
     // so fallen devices settle on the same groundline the rack stands on (and
