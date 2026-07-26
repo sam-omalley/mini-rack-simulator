@@ -4,7 +4,9 @@
   display: flex;
   justify-content: center;
   /* Generous headroom above the rack: that space is the playground, so there has
-     to be room to drop and stack things well clear of the rack's top. */
+     to be room to drop and stack things well clear of the rack's top. It is
+     never traded away to make a tall rack fit — the camera scales instead, see
+     App.fitCameraToStage (issue #63). */
   padding: 200px 0 40px;
   overflow: visible;
   /* Camera layer: a single zoom transform here scales the rack and the physics

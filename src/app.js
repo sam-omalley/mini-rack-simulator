@@ -24,6 +24,9 @@ import { exportPNG } from './features/exportPng.js';
 const MAX_HISTORY = 100;
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 1.4;
+// Smallest the fit-to-stage scale may go, so a very tall rack stays legible
+// rather than shrinking to nothing (issue #63).
+const FIT_SCALE_MIN = 0.4;
 
 // Momentary fine-placement modifier read from an event. Hold-to-reveal was
 // dropped: browsers (Firefox especially) deliver Alt/Shift keydown/keyup
@@ -35,7 +38,8 @@ const fineMode = (e) => Boolean(e && (e.shiftKey || e.altKey));
 export const App = {
   connections: [],
   maxU: 6,
-  zoom: 1,
+  zoom: 1, // user's multiplier; on-screen scale is cameraScale()
+  fitScale: 1, // shrinks the view so the whole world fits the stage (#63)
   draggedEl: null,
   fromSidebar: false,
   placingType: null,
@@ -152,7 +156,7 @@ export const App = {
       // The sidebar isn't zoomed, so the native drag image would preview at 100%
       // even when the rack is scaled — match the zoom so it looks like the drop.
       // At 100% the native image is already correct, so skip the custom ghost.
-      if (this.zoom !== 1) this.setScaledDragImage(e, card.querySelector('.device'));
+      if (this.cameraScale() !== 1) this.setScaledDragImage(e, card.querySelector('.device'));
       this.beginDrag(type, 'sidebar');
     });
     card.addEventListener('dragend', () => {
@@ -542,8 +546,47 @@ export const App = {
         </div>`;
       this.$slots.appendChild(row);
     }
-    // Rack height just changed — resync the physics obstacle for the cabinet.
+    // Rack height just changed — refit it to the stage, then resync the physics
+    // obstacle for the cabinet. Order matters: fitting moves the cabinet, and
+    // the floor is measured from where the cabinet ends up.
+    this.fitCameraToStage();
     FreeZone.syncBounds();
+  },
+
+  /**
+   * Make 100% mean "the whole world fits on screen" (issue #63).
+   *
+   * A 12U rack used to run off the bottom of the stage. The stage clips at its
+   * own box and the physics floor tracks the rack's foot, so the overflow took
+   * the floor out of view and fallen devices landed on an invisible ledge part
+   * way up. The playground headroom above the rack is NOT the space to take
+   * back — it exists so you can stack things on top of the rack — so the camera
+   * scales instead: `fitScale` shrinks the view until headroom + rack + footroom
+   * all fit, and the user's zoom multiplies on top of it.
+   *
+   * The world itself is untouched, so this stays a pure camera operation and
+   * #46 still holds: FreeZone reads the combined scale through cameraScale().
+   */
+  fitCameraToStage() {
+    const container = document.querySelector('.rack-wrapper-container');
+    const stage = document.getElementById('rack-stage');
+    if (!container || !stage) return;
+    const stageH = stage.clientHeight;
+    const worldH = container.offsetHeight; // layout height, unaffected by the camera
+    const next = stageH && worldH ? Math.max(FIT_SCALE_MIN, Math.min(1, stageH / worldH)) : 1;
+    if (Math.abs(next - this.fitScale) < 0.0005) return;
+    this.fitScale = next;
+    this.applyCamera();
+  },
+
+  /** Total on-screen scale: the fit-to-stage scale times the user's zoom. */
+  cameraScale() {
+    return this.fitScale * this.zoom;
+  },
+
+  applyCamera() {
+    this.$camera.style.transform = `scale(${this.cameraScale()})`;
+    this.$camera.style.transformOrigin = 'top center';
   },
 
   bindDelegatedEvents() {
@@ -617,6 +660,11 @@ export const App = {
       this.draggedEl = device;
       this.fromSidebar = false;
       e.dataTransfer.effectAllowed = 'copyMove';
+      // The native drag image snapshots the device at its LAYOUT size, ignoring
+      // the camera's zoom transform — so dragging a device off a zoomed-out rack
+      // produced a ghost far bigger than the thing under the cursor. Same custom
+      // ghost the library cards and free devices already use.
+      if (this.cameraScale() !== 1) this.setScaledDragImage(e, device);
       device.classList.add('dragging');
       this.beginDrag(device.dataset.type, 'placed');
     });
@@ -1285,6 +1333,13 @@ export const App = {
   /* ----------------------------------------------------------- Controls */
 
   bindGlobalControls() {
+    // The stage is sized off the viewport, so its height changes with the
+    // window — refit the rack before FreeZone re-measures the floor from it.
+    window.addEventListener('resize', () => {
+      this.fitCameraToStage();
+      FreeZone.syncBounds();
+    });
+
     document.getElementById('input-max-u').addEventListener('change', (e) => {
       let val = parseInt(e.target.value, 10);
       if (isNaN(val)) val = 6;
@@ -1405,7 +1460,7 @@ export const App = {
    */
   setScaledDragImage(e, deviceEl) {
     if (!deviceEl || !e.dataTransfer) return;
-    const z = this.zoom;
+    const z = this.cameraScale();
     const vis = deviceEl.getBoundingClientRect(); // visual rect, for the grab hotspot
     const iw = deviceEl.offsetWidth || 240;
     const ih = deviceEl.offsetHeight || 38;
@@ -1584,9 +1639,11 @@ export const App = {
     // exact same origin. The simulation itself lives in unscaled world space and
     // is deliberately NOT resynced here (issue #46) — the world has fixed extents,
     // so zooming changes only what you see. FreeZone maps client↔world
-    // coordinates through this.zoom for input only.
-    this.$camera.style.transform = `scale(${this.zoom})`;
-    this.$camera.style.transformOrigin = 'top center';
+    // coordinates through cameraScale() for input only.
+    //
+    // The user's zoom multiplies the fit-to-stage scale rather than replacing
+    // it, so 100% always means "the whole world on screen" (issue #63).
+    this.applyCamera();
     const pct = Math.round(this.zoom * 100);
     // The readout is also the reset control (issue #49). Its text is the live
     // region that announces zoom changes; the button's label has to spell out
