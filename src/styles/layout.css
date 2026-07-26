@@ -208,12 +208,24 @@
   align-items: center;
   gap: 8px;
 }
-.zoom-label {
-  min-width: 46px;
-  text-align: center;
+/* Zoom readout doubling as the reset-to-100% control. Kept flat so it still
+   reads as a readout rather than a third button competing with − and +; the
+   usual .btn hover/focus treatment appears on interaction to show it's live.
+   Wide enough for "140%" so the toolbar doesn't shuffle as you zoom. */
+.zoom-btn {
+  min-width: 56px;
+  padding: 8px 6px;
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-muted);
+}
+.zoom-btn:hover:not(:disabled),
+.zoom-btn:focus-visible {
+  border-color: var(--panel-border);
+  background-color: var(--panel-bg);
+  color: var(--text-color);
 }
 
 .right-bar {
