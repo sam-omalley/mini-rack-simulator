@@ -215,9 +215,19 @@
       <!-- View toolbar: floats above the stage, top-centre. -->
       <div class="stage-controls" role="toolbar" aria-label="Rack view controls">
         <button id="btn-zoom-out" class="btn btn-icon" type="button" aria-label="Zoom out">−</button>
-        <span id="zoom-label" class="zoom-label" aria-live="polite">100%</span>
+        <!-- The zoom readout is itself the control that returns to 100% (issue
+             #49): a bare "Reset" button beside a rack planner reads as "clear
+             my rack", which is what "Clear Rack" in the inspector does. -->
+        <button
+          id="btn-zoom-reset"
+          class="btn zoom-btn"
+          type="button"
+          aria-label="Zoom 100%. Activate to zoom to 100%."
+          title="Zoom to 100%"
+        >
+          <span id="zoom-label" aria-live="polite">100%</span>
+        </button>
         <button id="btn-zoom-in" class="btn btn-icon" type="button" aria-label="Zoom in">+</button>
-        <button id="btn-zoom-reset" class="btn" type="button">Reset</button>
         <button id="btn-face" class="btn" type="button" aria-pressed="false" title="Flip between the front (ports) and rear (power) side">
           🔀 Front
         </button>
