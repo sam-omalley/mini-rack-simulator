@@ -155,6 +155,31 @@ export const DEVICE_TYPES = {
     poeBudget: 0,
     heatWeight: 4,
   },
+  'uck-g2-plus': {
+    name: 'CloudKey Gen2 Plus (UCK-G2-PLUS)',
+    ports: ['poe-gbe'],
+    uHeight: 1,
+    hasScreen: true,
+    bracket: true,
+    bracketWidth: 140,
+    layout: 'uck-g2-plus',
+    watts: 10,
+    poeBudget: 0,
+    heatWeight: 2,
+    poeIn: true,
+  },
+  'unvr-instant': {
+    name: 'Network Video Recorder Instant (UNVR-Instant)',
+    ports: [...Array(6).fill('poe'), 'gbe'],
+    uHeight: 1,
+    hasScreen: true,
+    bracket: true,
+    bracketWidth: 250,
+    layout: 'unvr-instant',
+    watts: 25,
+    poeBudget: 45,
+    heatWeight: 3,
+  },
   ux7: {
     name: 'UniFi Express 7 (UX7)',
     ports: ['2.5g', 'wan-10g'],
@@ -234,6 +259,17 @@ export const DEVICE_TYPES = {
     watts: 12,
     poeBudget: 0,
     heatWeight: 2,
+  },
+  'rapidanalysis-xerxes-6x': {
+    name: 'Rapid Analysis Xerxes Pi 6× Blade Cluster',
+    ports: Array(6).fill('poe-gbe'),
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 270,
+    layout: 'rapidanalysis-xerxes',
+    watts: 45,
+    poeBudget: 0,
+    heatWeight: 3,
   },
 
   // Other vendors
@@ -356,8 +392,66 @@ export const DEVICE_TYPES = {
     heatWeight: 0,
   },
 
+  // 3.5" hot-swap cages. Carriers like the ones above, but their bays render as
+  // drive caddies (see deviceFactory `CADDY_LAYOUTS`): a filled bay is a caddy
+  // with latch, release button and vented handle, an empty one the bare slot.
+  //
+  // `watts` and `heatWeight` are the EMPTY enclosure — backplane and fans only.
+  // Upstream quotes fully-populated figures, which would double-count here
+  // because each fitted drive contributes its own watts and heat (same
+  // convention as `drive-cage-6`).
+  'hdd-cage-1u-2x': {
+    name: '1U 10" 2× 3.5" Hot-Swap HDD Cage',
+    ports: [],
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 270,
+    slots: { count: 2, accepts: 'drive-35', layout: 'caddy-h' },
+    watts: 3,
+    poeBudget: 0,
+    heatWeight: 1,
+  },
+  'hdd-cage-2u-6x': {
+    name: '2U 10" 6× 3.5" Hot-Swap HDD Cage',
+    ports: [],
+    uHeight: 2,
+    bracket: true,
+    bracketWidth: 270,
+    slots: { count: 6, accepts: 'drive-35', layout: 'caddy-h-rows' },
+    watts: 5,
+    poeBudget: 0,
+    heatWeight: 1,
+  },
+  'hdd-cage-3u-7x': {
+    name: '3U 10" 7× 3.5" Hot-Swap HDD Cage',
+    ports: [],
+    uHeight: 3,
+    bracket: true,
+    bracketWidth: 270,
+    slots: { count: 7, accepts: 'drive-35', layout: 'caddy-v' },
+    watts: 6,
+    poeBudget: 0,
+    heatWeight: 2,
+  },
+
   // Half-height (0.5U)
   'blank-half': { name: '0.5U Blank Panel', ports: [], uHeight: 0.5, watts: 0, poeBudget: 0, heatWeight: 0 },
+  'deskpi-dp0043': {
+    name: 'DeskPi 0.5U Brush Cable Entry Panel (DP-0043)',
+    ports: [],
+    uHeight: 0.5,
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
+  'deskpi-dp0034': {
+    name: 'DeskPi Rackmate 0.5U 12-Port CAT6 Patch Panel (DP-0034)',
+    ports: Array(12).fill('patch'),
+    uHeight: 0.5,
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
   'shelf-half': { name: '0.5U Vented Shelf', ports: [], uHeight: 0.5, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
   'pi-half': {
     name: '0.5U Single-Pi Mount',
@@ -388,6 +482,12 @@ export const SUBCOMPONENTS = {
   'ssd-500gb': { name: '500 GB SSD', class: 'drive', watts: 1, heatWeight: 0, capacityTB: 0.5 },
   'ssd-1tb': { name: '1 TB SSD', class: 'drive', watts: 1, heatWeight: 0, capacityTB: 1 },
   'ssd-2tb': { name: '2 TB SSD', class: 'drive', watts: 1, heatWeight: 0, capacityTB: 2 },
+  // 3.5" spinners are their own class: they only fit the hot-swap cages, never
+  // the 2.5" drive cage.
+  'hdd35-4tb': { name: '4 TB 3.5" HDD', class: 'drive-35', watts: 6, heatWeight: 2, capacityTB: 4 },
+  'hdd35-8tb': { name: '8 TB 3.5" HDD', class: 'drive-35', watts: 7, heatWeight: 2, capacityTB: 8 },
+  'hdd35-12tb': { name: '12 TB 3.5" HDD', class: 'drive-35', watts: 8, heatWeight: 3, capacityTB: 12 },
+  'hdd35-16tb': { name: '16 TB 3.5" HDD', class: 'drive-35', watts: 9, heatWeight: 3, capacityTB: 16 },
   'pi5-4gb': { name: 'Raspberry Pi 5 (4 GB)', class: 'compute', watts: 6, heatWeight: 2 },
   'pi5-8gb': { name: 'Raspberry Pi 5 (8 GB)', class: 'compute', watts: 7, heatWeight: 2 },
   'nuc-mini': { name: 'Mini PC (N100)', class: 'compute', watts: 15, heatWeight: 3 },
@@ -440,8 +540,8 @@ export const PORT_MEDIA_TYPES = {
 
 /** Library groupings shown in the sidebar. */
 export const CATEGORIES = [
-  { title: '📂 Panels & Cable Management', types: ['blank', 'brush-panel'] },
-  { title: '🔌 Patch Panels', types: ['patch-8', 'patch-12'] },
+  { title: '📂 Panels & Cable Management', types: ['blank', 'brush-panel', 'deskpi-dp0043'] },
+  { title: '🔌 Patch Panels', types: ['deskpi-dp0034', 'patch-8', 'patch-12'] },
   {
     title: '⚡ UniFi Switches',
     types: [
@@ -457,11 +557,17 @@ export const CATEGORIES = [
     ],
   },
   { title: '🌐 Routers & Gateways', types: ['ucg-max', 'ucg-ultra', 'ucg-fiber', 'ux7'] },
-  { title: '🍓 DeskPi & Displays', types: ['deskpi-dp0039', 'deskpi-dp0046', 'deskpi-dp0101', 'deskpi-dp0059', 'deskpi-dp0100'] },
+  { title: '📹 Consoles & Protect NVR', types: ['uck-g2-plus', 'unvr-instant'] },
+  {
+    title: '🍓 Clusters, Blades & Displays',
+    types: ['rapidanalysis-xerxes-6x', 'deskpi-dp0039', 'deskpi-dp0046', 'deskpi-dp0101', 'deskpi-dp0059', 'deskpi-dp0100'],
+  },
   { title: '💻 Servers & Mini PCs', types: ['dell-optiplex-micro', 'synology-nas-2bay'] },
-  { title: '🧩 Carriers & Drives', types: ['drive-cage-6', 'shelf-2slot'] },
+  { title: '🧩 Carriers & Drives', types: ['drive-cage-6', 'shelf-2slot', 'hdd-cage-1u-2x', 'hdd-cage-2u-6x', 'hdd-cage-3u-7x'] },
   { title: '🌍 Other Vendors', types: ['mikrotik-crs310', 'mikrotik-crs112', 'mikrotik-css318', 'intellinet-16'] },
   { title: '🔩 Power & Accessories', types: ['pdu-8', 'netio-powerpdu-4c', 'ups-1u', 'shelf-1u'] },
+  // The two 0.5U DeskPi parts live with their functional peers (cable management
+  // / patch panels) rather than here, so each type gets exactly one library card.
   { title: '📐 Half-Height (0.5U)', types: ['blank-half', 'shelf-half', 'pi-half'] },
 ];
 
