@@ -30,6 +30,7 @@ export const FreeZone = {
   statics: [], // every static body (walls, floor, obstacles)
   obstacles: [], // just the rack + its handles — things worth lifting out of
   bounds: null, // { leftX, rightX, floorY } in world coordinates
+  _anchor: null, // where the rack sat last time the world was measured
   lifted: null, // the device currently picked up (removed from simulation)
   _running: false,
   _calmTicks: 0,
@@ -255,12 +256,27 @@ export const FreeZone = {
     // centred on the stage, which never changes size.
     const edgeOf = (sel, side) => {
       const el = document.querySelector(sel);
-      if (!el || el.offsetParent === null) return side === 'left' ? 0 : w;
+      const open = side === 'left' ? 0 : w;
+      if (!el || el.offsetParent === null) return open;
       const r = el.getBoundingClientRect();
+      // A panel only walls the playground in if it actually sits BESIDE the
+      // stage. Below the reflow breakpoint the inspector moves underneath it
+      // (responsive.css), where it flanks nothing — and since it then starts at
+      // the stage's own left edge, measuring it as the right wall put that wall
+      // at x=0, collapsing the world to zero width and slamming every device
+      // into the corner (issue #58).
+      if (r.bottom <= rect.top || r.top >= rect.bottom) return open;
       return unzoomedX(side === 'left' ? r.right : r.left);
     };
-    const leftX = Math.max(0, Math.min(w, edgeOf('.sidebar', 'left')));
-    const rightX = Math.max(0, Math.min(w, edgeOf('.right-bar', 'right')));
+    let leftX = Math.max(0, Math.min(w, edgeOf('.sidebar', 'left')));
+    let rightX = Math.max(0, Math.min(w, edgeOf('.right-bar', 'right')));
+    // Never let the walls cross. A degenerate gap is worse than no walls at all:
+    // _confineAll centres every device on it, so one bad measurement piles the
+    // whole playground into a single point.
+    if (leftX >= rightX) {
+      leftX = 0;
+      rightX = w;
+    }
 
     // The floor is level with the foot of the rack, not the foot of the window,
     // so fallen devices settle on the same groundline the rack stands on (and
@@ -278,6 +294,30 @@ export const FreeZone = {
     const floorY = Math.min(cabWorld ? cabWorld.top + cabWorld.height : h, h);
     const prev = this.bounds;
     this.bounds = { leftX, rightX, floorY };
+
+    // Devices travel with the rack when the world is re-measured (issue #58).
+    // World coordinates are relative to the zone's left edge, but the rack is
+    // anchored to its CENTRE — so resizing the window slid every fallen device
+    // sideways relative to the rack, by half the width change, and knocked
+    // anything perched on top of the rack off it. Translating by however far the
+    // rack itself moved keeps the scene together: what was leaning on the rack
+    // stays leaning on it. _confineAll below then handles whatever genuinely no
+    // longer fits between the walls.
+    const anchor = cabWorld ? { x: cabWorld.left + cabWorld.width / 2, y: cabWorld.top } : { x: w / 2, y: floorY };
+    const was = this._anchor;
+    this._anchor = anchor;
+    if (was && this.items.size) {
+      const dx = anchor.x - was.x;
+      const dy = anchor.y - was.y;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        for (const body of this.items.keys()) {
+          Sleeping.set(body, false);
+          Body.setPosition(body, { x: body.position.x + dx, y: body.position.y + dy });
+          Body.setVelocity(body, { x: 0, y: 0 });
+          this._paint(body);
+        }
+      }
+    }
     // Only a real move of the walls or floor can leave a sleeping device
     // unsupported. Waking on every call instead would undo the point of letting
     // them sleep, since most calls recompute the same geometry.
