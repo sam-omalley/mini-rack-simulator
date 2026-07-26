@@ -295,6 +295,18 @@
             <span>Power draw (W)</span>
             <input id="cd-watts" type="number" min="0" step="1" placeholder="0" />
           </label>
+          <label class="field">
+            <span>Cooling (0–5)</span>
+            <input
+              id="cd-cooling"
+              type="number"
+              min="0"
+              max="5"
+              step="1"
+              placeholder="0"
+              title="Heat this device removes — set this for fans. 0 for everything else."
+            />
+          </label>
         </div>
         <fieldset class="ports-fieldset">
           <legend>Ports</legend>

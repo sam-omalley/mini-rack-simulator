@@ -100,6 +100,22 @@ function buildBracket(type, spec, uSlot) {
     chassis.style.width = `${spec.bracketWidth}px`;
     for (let i = 0; i < (spec.outlets || 0); i++) chassis.appendChild(el('span', 'pdu-outlet'));
     bracket.appendChild(chassis);
+  } else if (spec.layout === 'fan-unit') {
+    const chassis = el('div', 'fan-chassis');
+    chassis.style.width = `${spec.bracketWidth}px`;
+    // The OLED readout is what distinguishes the 4-fan unit; the 2-fan one is a
+    // bare grille. Driven off `fans` so one branch draws both.
+    if (spec.fans >= 4) {
+      const oled = el('div', 'fan-oled');
+      oled.innerHTML = '<span class="fan-oled-temp">28°C</span><span class="fan-oled-bar"></span>';
+      chassis.appendChild(oled);
+    }
+    for (let i = 0; i < (spec.fans || 0); i++) {
+      const cell = el('div', 'fan-cell');
+      cell.innerHTML = '<span class="fan-hub"></span><span class="fan-blades"></span>';
+      chassis.appendChild(cell);
+    }
+    bracket.appendChild(chassis);
   } else if (spec.layout === 'uck-g2-plus') {
     // The CloudKey wears its status screen on the right of the port, not the
     // left like the gateways — hence its own dark chassis rather than the

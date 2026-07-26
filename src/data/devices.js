@@ -14,6 +14,13 @@
  *   watts       Typical power draw of the device itself (W).
  *   poeBudget   PoE power the device can supply to attached gear (W).
  *   heatWeight  Relative heat output, used for the thermal hot-spot map (0–5).
+ *   coolingWeight  Heat the device REMOVES, same 0–5 scale as heatWeight. Only
+ *               fans set this. Kept separate rather than allowing a negative
+ *               heatWeight so "how hot is this thing" and "how much does it
+ *               shift" stay distinct — a fan draws watts and makes noise, it
+ *               just happens to move heat out. Cooling counts against the rack
+ *               total AND against whatever the device is touching (see
+ *               App.updateThermalMap), so where you mount a fan matters.
  *   slots       Carrier descriptor: { count, accepts, layout }. Marks the device
  *               as a container whose bays hold SUBCOMPONENTS of class `accepts`.
  */
@@ -371,6 +378,85 @@ export const DEVICE_TYPES = {
   },
   'shelf-1u': { name: '1U Vented Shelf', ports: [], uHeight: 1, layout: 'shelf', watts: 0, poeBudget: 0, heatWeight: 0 },
 
+  // GeeekPi 10" gear. The fan units are the only devices that cool: `fans` is
+  // just how many blades the faceplate draws.
+  'geeekpi-fan-1u-4x': {
+    name: 'GeeekPi 1U Rack Fan Unit (4× 80 mm, OLED)',
+    ports: [],
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 270,
+    layout: 'fan-unit',
+    fans: 4,
+    watts: 8,
+    poeBudget: 0,
+    heatWeight: 0,
+    coolingWeight: 4,
+  },
+  'geeekpi-fan-2u-2x': {
+    name: 'GeeekPi 2U Rack Fan Unit (2× 70 mm)',
+    ports: [],
+    uHeight: 2,
+    bracket: true,
+    bracketWidth: 270,
+    layout: 'fan-unit',
+    fans: 2,
+    watts: 4,
+    poeBudget: 0,
+    heatWeight: 0,
+    coolingWeight: 2,
+  },
+  'geeekpi-dc-pdu-7': {
+    name: 'GeeekPi 0.5U DC PDU Lite (7-Channel)',
+    ports: [],
+    uHeight: 0.5,
+    bracket: true,
+    bracketWidth: 250,
+    layout: 'pdu',
+    outlets: 7,
+    capacity: 192, // 24 V × 8 A
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
+  'geeekpi-sbc-shelf-1u': {
+    name: 'GeeekPi 1U SBC Shelf (Pi / Jetson / 2.5")',
+    ports: [],
+    uHeight: 1,
+    layout: 'shelf',
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
+  'geeekpi-itx-shelf-1u': {
+    name: 'GeeekPi 1U Mini-ITX Shelf',
+    ports: [],
+    uHeight: 1,
+    layout: 'shelf',
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
+  'geeekpi-minipc-shelf-1u': {
+    name: 'GeeekPi 1U Mini PC Shelf (RJ45 + HDMI)',
+    ports: ['gbe'],
+    uHeight: 1,
+    bracket: true,
+    bracketWidth: 200,
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
+  'geeekpi-vented-shelf-half': {
+    name: 'GeeekPi 0.5U Heavy-Duty Vented Shelf',
+    ports: [],
+    uHeight: 0.5,
+    layout: 'shelf',
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+  },
+
   // Carriers: containers whose `slots` hold sub-components (see SUBCOMPONENTS).
   // Bays are filled/emptied in place; the carrier itself has no faceplate ports.
   'drive-cage-6': {
@@ -565,10 +651,24 @@ export const CATEGORIES = [
   { title: '💻 Servers & Mini PCs', types: ['dell-optiplex-micro', 'synology-nas-2bay'] },
   { title: '🧩 Carriers & Drives', types: ['drive-cage-6', 'shelf-2slot', 'hdd-cage-1u-2x', 'hdd-cage-2u-6x', 'hdd-cage-3u-7x'] },
   { title: '🌍 Other Vendors', types: ['mikrotik-crs310', 'mikrotik-crs112', 'mikrotik-css318', 'intellinet-16'] },
-  { title: '🔩 Power & Accessories', types: ['pdu-8', 'netio-powerpdu-4c', 'ups-1u', 'shelf-1u'] },
+  { title: '🔩 Power & Accessories', types: ['pdu-8', 'netio-powerpdu-4c', 'ups-1u', 'geeekpi-dc-pdu-7'] },
+  { title: '❄️ Rack Cooling', types: ['geeekpi-fan-1u-4x', 'geeekpi-fan-2u-2x'] },
+  // Shelves gathered from Power & Accessories and Half-Height, so the growing
+  // set sits together rather than being split by height.
+  {
+    title: '🗄️ Shelves & Trays',
+    types: [
+      'shelf-1u',
+      'shelf-half',
+      'geeekpi-sbc-shelf-1u',
+      'geeekpi-itx-shelf-1u',
+      'geeekpi-minipc-shelf-1u',
+      'geeekpi-vented-shelf-half',
+    ],
+  },
   // The two 0.5U DeskPi parts live with their functional peers (cable management
   // / patch panels) rather than here, so each type gets exactly one library card.
-  { title: '📐 Half-Height (0.5U)', types: ['blank-half', 'shelf-half', 'pi-half'] },
+  { title: '📐 Half-Height (0.5U)', types: ['blank-half', 'pi-half'] },
 ];
 
 /** Convenience: uHeight with a safe default. */
