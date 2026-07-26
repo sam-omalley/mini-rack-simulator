@@ -100,6 +100,26 @@ function buildBracket(type, spec, uSlot) {
     chassis.style.width = `${spec.bracketWidth}px`;
     for (let i = 0; i < (spec.outlets || 0); i++) chassis.appendChild(el('span', 'pdu-outlet'));
     bracket.appendChild(chassis);
+  } else if (spec.layout === 'uck-g2-plus') {
+    // The CloudKey wears its status screen on the right of the port, not the
+    // left like the gateways — hence its own dark chassis rather than the
+    // shared `unifi-chassis` branch below.
+    const chassis = el('div', 'uck-chassis');
+    chassis.style.width = `${spec.bracketWidth}px`;
+    chassis.appendChild(buildPorts(type, spec, uSlot));
+    if (spec.hasScreen) chassis.appendChild(el('div', 'unifi-screen'));
+    bracket.appendChild(chassis);
+  } else if (spec.layout === 'rapidanalysis-xerxes') {
+    const chassis = el('div', 'xerxes-chassis');
+    chassis.style.width = `${spec.bracketWidth}px`;
+    spec.ports.forEach((ptype, idx) => {
+      const bay = el('div', 'xerxes-blade-bay');
+      const unit = el('div', 'switch-port-unit');
+      unit.append(el('div', 'led'), createRJ45(ptype, idx, uSlot));
+      bay.appendChild(unit);
+      chassis.appendChild(bay);
+    });
+    bracket.appendChild(chassis);
   } else if (spec.layout === 'deskpi-dp0039' || spec.layout === 'deskpi-dp0046') {
     const chassis = el('div', 'deskpi-chassis');
     spec.ports.forEach((ptype, idx) => {
@@ -123,22 +143,62 @@ function buildBracket(type, spec, uSlot) {
 
 /* ------------------------------------------------------------- Carriers */
 
+/**
+ * Carrier layouts whose bays render as hot-swap drive caddies instead of the
+ * plain labelled bay. `orient` picks the caddy artwork; `perRow` (when set)
+ * breaks the bays into rows. Everything else about them is an ordinary carrier
+ * bay — same fill menu, same `fills` persistence.
+ */
+const CADDY_LAYOUTS = {
+  'caddy-h': { orient: 'h' },
+  'caddy-h-rows': { orient: 'h', perRow: 2 },
+  'caddy-v': { orient: 'v' },
+};
+
 /** Build the faceplate for a slotted carrier: a row of empty/fillable bays. */
 function buildCarrier(spec, uSlot) {
-  const carrier = el('div', `slot-carrier slot-carrier--${spec.slots.layout || 'bays'}`);
-  for (let i = 0; i < spec.slots.count; i++) {
-    carrier.appendChild(buildBay(i, null, uSlot));
+  const layout = spec.slots.layout || 'bays';
+  const caddy = CADDY_LAYOUTS[layout];
+  const carrier = el('div', `slot-carrier slot-carrier--${layout}`);
+
+  if (caddy?.perRow) {
+    for (let i = 0; i < spec.slots.count; i += caddy.perRow) {
+      const row = el('div', 'caddy-row');
+      for (let j = i; j < Math.min(i + caddy.perRow, spec.slots.count); j++) {
+        row.appendChild(buildBay(j, null, uSlot, caddy.orient));
+      }
+      carrier.appendChild(row);
+    }
+  } else {
+    for (let i = 0; i < spec.slots.count; i++) {
+      carrier.appendChild(buildBay(i, null, uSlot, caddy?.orient));
+    }
   }
-  return carrier;
+
+  if (!spec.bracket) return carrier;
+  // Bracket-mounted cages sit in a metal chassis, like the other 10" gear.
+  const chassis = el('div', 'hdd-chassis');
+  chassis.style.width = `${spec.bracketWidth}px`;
+  chassis.appendChild(carrier);
+  const bracket = el('div', 'bracket-3d');
+  bracket.appendChild(chassis);
+  return bracket;
 }
 
 /**
  * Build one carrier bay. `fillKey` is a SUBCOMPONENTS key or null (empty).
+ * `orient` opts the bay into the drive-caddy artwork ('h' or 'v').
  * Exported so app.js can rebuild a single bay when the user changes its fill.
  */
-export function buildBay(index, fillKey, uSlot = null) {
+export function buildBay(index, fillKey, uSlot = null, orient = null) {
   const bay = el('div', 'carrier-bay');
   bay.dataset.bay = String(index);
+  if (orient) {
+    bay.classList.add('carrier-bay--caddy', `carrier-bay--caddy-${orient}`);
+    // applyBayFill re-reads this on every fill change, so the bay keeps its
+    // artwork without the caller having to remember which carrier it came from.
+    bay.dataset.caddy = orient;
+  }
   if (uSlot) {
     bay.tabIndex = 0;
     bay.setAttribute('role', 'button');
@@ -151,19 +211,37 @@ export function buildBay(index, fillKey, uSlot = null) {
 /** Set (or clear) a bay's fill in place: dataset, label, and styling. */
 export function applyBayFill(bay, fillKey) {
   const sub = fillKey ? subOf(fillKey) : null;
+  const caddy = bay.dataset.caddy;
   if (sub) {
     bay.dataset.fill = fillKey;
     bay.classList.add('filled');
-    bay.innerHTML = `<span class="bay-fill">${escapeHtml(bayBadge(sub))}</span>`;
+    // A fitted caddy is drawn, not labelled — the drive is named in the tooltip
+    // and aria-label below, and itemised in the BoM.
+    bay.innerHTML = caddy ? caddyHtml(caddy) : `<span class="bay-fill">${escapeHtml(bayBadge(sub))}</span>`;
     bay.setAttribute('aria-label', `${sub.name} — activate to change`);
     bay.title = sub.name;
   } else {
     delete bay.dataset.fill;
     bay.classList.remove('filled');
-    bay.innerHTML = '<span class="bay-empty" aria-hidden="true">+</span>';
+    // An empty caddy bay is the bare slot the caddy slides into: rails only.
+    bay.innerHTML = caddy ? '' : '<span class="bay-empty" aria-hidden="true">+</span>';
     bay.setAttribute('aria-label', 'Empty slot — activate to fit a component');
     bay.title = 'Empty slot';
   }
+}
+
+/** A fitted hot-swap caddy: latch, orange release button, and vented handle. */
+function caddyHtml(orient) {
+  if (orient === 'v') {
+    return (
+      '<span class="caddy-latch-top"><span class="caddy-btn"></span></span>' +
+      `<span class="caddy-handle-vert">${'<span class="caddy-vent-slot-horiz"></span>'.repeat(4)}</span>`
+    );
+  }
+  return (
+    '<span class="caddy-latch"><span class="caddy-btn"></span><span class="caddy-plus">+</span></span>' +
+    `<span class="caddy-handle-horiz">${'<span class="caddy-vent-slot"></span>'.repeat(4)}</span>`
+  );
 }
 
 /** Compact label for a filled bay (full name stays in the tooltip/aria). */
@@ -216,6 +294,7 @@ function gapBefore(type, layout, idx) {
   if (layout === 'ucg-max' && idx === 1) return 8;
   if (layout === 'ucg-ultra' && idx === 4) return 8;
   if (layout === 'ucg-fiber' && (idx === 4 || idx === 5)) return 6;
+  if (layout === 'unvr-instant' && idx === 6) return 8; // PoE bank | uplink
   if (type === 'usw-pro-xg-8-poe' && idx === 8) return 6;
   return 0;
 }
