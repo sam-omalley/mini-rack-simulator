@@ -395,6 +395,10 @@ export const DEVICE_TYPES = {
   // 3.5" hot-swap cages. Carriers like the ones above, but their bays render as
   // drive caddies (see deviceFactory `CADDY_LAYOUTS`): a filled bay is a caddy
   // with latch, release button and vented handle, an empty one the bare slot.
+  //
+  // `watts` is the EMPTY enclosure — backplane and fans only. Upstream quotes a
+  // fully-populated figure, which would double-count here because each fitted
+  // drive contributes its own watts (same convention as `drive-cage-6`).
   'hdd-cage-1u-2x': {
     name: '1U 10" 2× 3.5" Hot-Swap HDD Cage',
     ports: [],
@@ -402,7 +406,7 @@ export const DEVICE_TYPES = {
     bracket: true,
     bracketWidth: 270,
     slots: { count: 2, accepts: 'drive-35', layout: 'caddy-h' },
-    watts: 15,
+    watts: 3,
     poeBudget: 0,
     heatWeight: 3,
   },
@@ -413,7 +417,7 @@ export const DEVICE_TYPES = {
     bracket: true,
     bracketWidth: 270,
     slots: { count: 6, accepts: 'drive-35', layout: 'caddy-h-rows' },
-    watts: 45,
+    watts: 5,
     poeBudget: 0,
     heatWeight: 5,
   },
@@ -424,7 +428,7 @@ export const DEVICE_TYPES = {
     bracket: true,
     bracketWidth: 270,
     slots: { count: 7, accepts: 'drive-35', layout: 'caddy-v' },
-    watts: 55,
+    watts: 6,
     poeBudget: 0,
     heatWeight: 6,
   },

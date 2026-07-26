@@ -46,6 +46,15 @@ body.dark-mode .device:not(.placed) {
 .device.dragging {
   opacity: 0.4;
 }
+/* A racked device in flight must not hit-test, or a multi-U device shadows the
+   very slots you are trying to drop it into: `e.target.closest('.slot')` keeps
+   resolving to its own anchor row, so nudging a 3U cage down one U was
+   impossible. With this, hit-testing falls through to the slot under the
+   cursor; canPlace() already ignores the dragged device itself. Scoped to
+   `.placed` so free devices in the playground keep their own drag behaviour. */
+.device.placed.dragging {
+  pointer-events: none;
+}
 
 @keyframes snapEffect {
   from {
