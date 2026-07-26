@@ -67,26 +67,30 @@ export const FreeZone = {
   // pixels. The zone is visually scaled by the rack's zoom via a CSS transform
   // (applied in App.setZoom), so we divide out that zoom whenever we cross
   // between client space and simulation space.
+  //
+  // The world itself is zoom-INDEPENDENT (issue #46): zoom is a camera, and a
+  // camera must never touch simulation state. Nothing here may be recomputed on
+  // a zoom change — only on a genuine layout change (resize, panel collapse,
+  // rack height).
 
   _zoom() {
     return this.app?.zoom || 1;
   },
 
   /**
-   * Size the world so it always covers the stage on screen, whatever the zoom.
-   * The camera scales the zone by `z`, so the zone's own (world) size has to be
-   * the stage size divided by `z`. Zooming out therefore widens the world rather
-   * than shrinking its walls — the boundary stays put on screen, which is what a
-   * camera should do. Devices keep their world coordinates throughout.
+   * Size the world to the stage, in world units, at every zoom level. The camera
+   * then scales that fixed world: zooming in crops it, zooming out reveals empty
+   * stage around it. The alternative — sizing the world to stage/zoom so the
+   * walls stay glued to the panel edges on screen — moves the walls in world
+   * space and so mutates the simulation on a camera change (issue #46).
    */
   _sizeZone() {
     const stage = this.zone.closest('.stage');
     if (!stage) return;
     const sr = stage.getBoundingClientRect();
     if (!sr.width || !sr.height) return;
-    const z = this._zoom();
-    this.zone.style.width = `${sr.width / z}px`;
-    this.zone.style.height = `${sr.height / z}px`;
+    this.zone.style.width = `${sr.width}px`;
+    this.zone.style.height = `${sr.height}px`;
   },
 
   /** Zone rect (client, i.e. zoom-scaled) plus its unscaled logical size. */
@@ -106,14 +110,19 @@ export const FreeZone = {
 
   /**
    * Drop a device into the playground at a client-space point.
-   * @returns {boolean} true if it landed inside the zone (i.e. was spawned).
+   * @returns {boolean} true if it was spawned.
    */
   spawn(type, clientX, clientY, fills = null) {
     if (!this.zone) return false;
     const { w, h } = this._metrics();
-    const { x, y } = this._toLocal(clientX, clientY);
-    if (x < 0 || y < 0 || x > w || y > h) return false;
-    this._add(type, x, y, 0, fills);
+    const local = this._toLocal(clientX, clientY);
+    // The world has fixed extents, so when zoomed out the stage reaches past its
+    // edges. Clamp the drop point in rather than refusing the drop: anything let
+    // go over the stage lands, and a device dragged off the rack can never be
+    // dropped into nowhere and lost.
+    const x = Math.max(0, Math.min(w, local.x));
+    const y = Math.max(0, Math.min(h, local.y));
+    if (!this._add(type, x, y, 0, fills)) return false;
     this._ensureRunning();
     this.app?.commit();
     return true;
@@ -215,13 +224,23 @@ export const FreeZone = {
     const { rect, z, w, h } = this._metrics();
     if (rect.width === 0 || rect.height === 0) return;
 
-    // Map a zoom-scaled client rect into unscaled world coordinates.
+    // Map a zoom-scaled client rect into unscaled world coordinates. Only valid
+    // for elements INSIDE the camera (the rack), which the same transform scales.
     const toWorld = (r) => ({
       left: (r.left - rect.left) / z,
       top: (r.top - rect.top) / z,
       width: r.width / z,
       height: r.height / z,
     });
+
+    // The panels are outside the camera, so they must not be measured through
+    // the zoom — that is exactly what used to drag the walls around on a zoom
+    // step. Anchor them instead on the two screen points the camera cannot move:
+    // the zone's centre-x and its top both sit on the transform origin (top
+    // centre), so they hold still at every zoom. Because the zone is stage-sized
+    // and stage-centred, this is just "client x, relative to the stage".
+    const originX = rect.left + rect.width / 2;
+    const unzoomedX = (clientX) => w / 2 + (clientX - originX);
 
     // Side walls sit at the inner edge of whichever panel is showing, and slide
     // out to the world edge when it's collapsed — so collapsing a panel simply
@@ -230,8 +249,8 @@ export const FreeZone = {
     const edgeOf = (sel, side) => {
       const el = document.querySelector(sel);
       if (!el || el.offsetParent === null) return side === 'left' ? 0 : w;
-      const r = toWorld(el.getBoundingClientRect());
-      return side === 'left' ? r.left + r.width : r.left;
+      const r = el.getBoundingClientRect();
+      return unzoomedX(side === 'left' ? r.right : r.left);
     };
     const leftX = Math.max(0, Math.min(w, edgeOf('.sidebar', 'left')));
     const rightX = Math.max(0, Math.min(w, edgeOf('.right-bar', 'right')));
@@ -274,6 +293,10 @@ export const FreeZone = {
    * Keep every device inside the current side walls. Called whenever the bounds
    * change so that a panel sliding back in shoves what it would have covered —
    * settled stacks included — rather than leaving devices stranded underneath it.
+   *
+   * Only genuine layout changes get here. Zoom must never reach this code: it
+   * displaces settled devices and wakes the runner, which is precisely the
+   * instability issue #46 describes.
    */
   _confineAll() {
     if (!this.bounds || this.items.size === 0) return;
