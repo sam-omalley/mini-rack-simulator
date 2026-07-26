@@ -1,7 +1,7 @@
 import Matter from 'matter-js';
 import { createDevice, applyBayFill } from '../render/deviceFactory.js';
 
-const { Engine, Runner, Composite, Bodies, Body, Query, Events } = Matter;
+const { Engine, Runner, Composite, Bodies, Body, Query, Events, Sleeping } = Matter;
 
 // Static-body thickness for the floor/walls, and how far off-screen the walls
 // sit so nothing visibly clips the zone edge.
@@ -39,7 +39,14 @@ export const FreeZone = {
     this.zone = document.getElementById('free-zone');
     if (!this.zone) return;
 
-    this.engine = Engine.create();
+    // Sleeping matters here even though the calm counter below already stops the
+    // runner. A settled device that is merely *stopped* resumes solving the
+    // instant anything wakes the runner — confining a different device, a panel
+    // toggle, a new drop — and a device resting at a slope slides a little every
+    // time that happens, so sloped stacks walked apart over a session. A
+    // sleeping body is skipped by the solver entirely, so it stays put until
+    // something actually touches it. Matter wakes it on collision by itself.
+    this.engine = Engine.create({ enableSleeping: true });
     this.engine.gravity.y = 1;
     this.runner = Runner.create();
     this.items = new Map();
@@ -269,7 +276,12 @@ export const FreeZone = {
     const cab = document.querySelector('.rack-cabinet');
     const cabWorld = cab ? toWorld(cab.getBoundingClientRect()) : null;
     const floorY = Math.min(cabWorld ? cabWorld.top + cabWorld.height : h, h);
+    const prev = this.bounds;
     this.bounds = { leftX, rightX, floorY };
+    // Only a real move of the walls or floor can leave a sleeping device
+    // unsupported. Waking on every call instead would undo the point of letting
+    // them sleep, since most calls recompute the same geometry.
+    const boundsMoved = !prev || prev.leftX !== leftX || prev.rightX !== rightX || prev.floorY !== floorY;
 
     const opt = { isStatic: true };
     this.statics.push(
@@ -294,6 +306,10 @@ export const FreeZone = {
       .forEach((handle) => addObstacle(toWorld(handle.getBoundingClientRect())));
 
     Composite.add(this.engine.world, this.statics);
+    if (boundsMoved && this.items.size) {
+      this._wakeAll();
+      this._ensureRunning(); // the ground shifted — let everything re-settle on it
+    }
     this._confineAll();
   },
 
@@ -311,12 +327,22 @@ export const FreeZone = {
     const { leftX, rightX } = this.bounds;
     let moved = false;
     for (const body of this.items.keys()) {
-      const half = (body.bounds.max.x - body.bounds.min.x) / 2;
+      // Measure against the device's own width, NOT `body.bounds` — that is the
+      // axis-aligned box of a ROTATED rectangle, so it changes with the angle.
+      // Confining against it means a tilted device gets a different target every
+      // pass: each call nudges it, the nudge disturbs the stack, the stack
+      // re-settles at a new angle, and the next call nudges it again. That
+      // ratchet is what walked sloped stacks apart a pixel at a time. `_add`
+      // already clamps on the true width, so this also makes the two agree.
+      const half = body._dims.w / 2;
       // A device wider than the gap gets centred rather than fought over.
       const min = leftX + half;
       const max = rightX - half;
       const x = min > max ? (leftX + rightX) / 2 : Math.max(min, Math.min(max, body.position.x));
-      if (Math.abs(x - body.position.x) > 0.01) {
+      // Only act on corrections big enough to see. Waking the runner for a
+      // sub-pixel tweak costs a settled stack more than the tweak is worth.
+      if (Math.abs(x - body.position.x) > 0.5) {
+        Sleeping.set(body, false); // teleporting a sleeper leaves it hanging
         Body.setPosition(body, { x, y: body.position.y });
         Body.setVelocity(body, { x: 0, y: body.velocity.y });
         this._paint(body);
@@ -336,6 +362,7 @@ export const FreeZone = {
     if (!this.zone || this.items.size === 0) return;
     const { w } = this._metrics();
     for (const body of this.items.keys()) {
+      Sleeping.set(body, false);
       Body.setPosition(body, { x: w - body.position.x, y: body.position.y });
       Body.setAngle(body, -body.angle);
       Body.setVelocity(body, { x: -body.velocity.x, y: body.velocity.y });
@@ -396,8 +423,14 @@ export const FreeZone = {
     this.items.delete(body);
     el._body = null;
     // Lifting one out from under a stack drops the others' support — wake the
-    // sim so they fall and re-settle instead of hovering in mid-air.
-    if (this.items.size) this._ensureRunning();
+    // sim so they fall and re-settle instead of hovering in mid-air. The bodies
+    // themselves have to be woken too, not just the runner: a sleeping body is
+    // skipped by the solver, so it would hang in the air where its support used
+    // to be.
+    if (this.items.size) {
+      this._wakeAll();
+      this._ensureRunning();
+    }
     return { type: item.type, fills: item.fills };
   },
 
@@ -474,6 +507,11 @@ export const FreeZone = {
       if (Math.abs(v.x) > 0.05 || Math.abs(v.y) > 0.05 || Math.abs(body.angularVelocity) > 0.008) return false;
     }
     return true;
+  },
+
+  /** Wake every device, so the solver reconsiders them after the world moved. */
+  _wakeAll() {
+    for (const body of this.items.keys()) Sleeping.set(body, false);
   },
 
   _ensureRunning() {
