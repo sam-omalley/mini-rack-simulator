@@ -44,6 +44,48 @@ export function moveStep(alt) {
   return alt ? STEP : 1;
 }
 
+/**
+ * Clamp a top-anchor so the whole device stays between the rack's rails.
+ * A 3U device hovered over the bottom row resolves to the bottom three rows
+ * rather than hanging two rows off the end (issue #62).
+ */
+export function clampAnchor(u, uHeight, maxU) {
+  return round(Math.max(uHeight, Math.min(maxU, u)));
+}
+
+/**
+ * How many half-rows of a device sit ABOVE the point it was picked up by.
+ * `fraction` is 0 at the device's top edge and 1 at its bottom, so grabbing a
+ * 3U device by the middle gives 3 — the rows that must stay above the cursor.
+ */
+export function grabRows(fraction, uHeight) {
+  const rows = Math.round(uHeight / STEP);
+  const f = Number(fraction);
+  const clamped = Number.isFinite(f) ? Math.max(0, Math.min(1, f)) : 0;
+  return Math.max(0, Math.min(rows - 1, Math.floor(clamped * rows)));
+}
+
+/**
+ * The top-anchor a device actually takes when dropped over the row `pointerU`.
+ *
+ * Three corrections, all of which the drop preview and the drop itself have to
+ * agree on (issue #62): the anchor is offset by where the device was grabbed,
+ * so it lands where the drag image showed it rather than hanging off the
+ * cursor; it is snapped to the active grid; and it is clamped into the rack
+ * instead of being allowed to run off either end.
+ */
+export function resolveAnchor(pointerU, uHeight, maxU, { fine = false, grab = 0 } = {}) {
+  const step = fine || !Number.isInteger(uHeight) ? STEP : 1;
+  // The offset moves in WHOLE grid steps. Adding it before the snap instead
+  // lands a whole-U device on a half-U tie (a 3U part grabbed centrally is 1.5U
+  // from its own top), and the tie rounds away from the cursor — so the part
+  // ends up sitting one U above where its drag image was. Rounding the offset
+  // down to the grid also leaves 1U drags exactly as they were: grab anywhere
+  // in the device and it still lands on the row under the cursor.
+  const offset = Math.floor((grab * STEP) / step) * step;
+  return clampAnchor(round(snapAnchor(pointerU, uHeight, fine) + offset), uHeight, maxU);
+}
+
 function round(n) {
   return Math.round(n * 2) / 2;
 }

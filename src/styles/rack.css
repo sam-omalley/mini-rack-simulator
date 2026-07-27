@@ -323,17 +323,38 @@ svg path.cable-path:hover {
   border-color: rgba(0, 85, 255, 0.5);
 }
 
-.slot.drag-over .slot-bay,
 .slots-container.picking .slot:not(.slot-blocked) .slot-bay {
   border-color: var(--accent-blue);
   color: var(--accent-blue);
 }
-.slot.drag-over .slot-bay {
-  background-color: rgba(0, 85, 255, 0.15);
-}
 .slots-container.picking .slot:not(.slot-blocked):hover .slot-bay {
-  background-color: rgba(0, 85, 255, 0.15);
   cursor: pointer;
+}
+
+/* Drop preview (issue #62). Highlighting only the row under the cursor was
+   misleading for anything taller than 1U: it marked one row while the drop
+   filled several, and it lit up rows that couldn't take the device at all.
+   This is one block spanning the rows the drop will ACTUALLY fill, tracking
+   the same clamped anchor handleDrop() uses, so what you see is what you get.
+   It sits above placed devices (z-index 10) so an overlapping — and therefore
+   blocked — position is still visible over the device in the way. */
+.drop-ghost {
+  position: absolute;
+  left: 20px; /* inside the rails, matching .slot-bay */
+  right: 20px;
+  z-index: 20;
+  pointer-events: none;
+  border: 2px solid var(--accent-blue);
+  border-radius: 3px;
+  background-color: rgba(0, 85, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(2, 6, 23, 0.5);
+}
+.drop-ghost[hidden] {
+  display: none;
+}
+.drop-ghost--blocked {
+  border-color: var(--accent-red);
+  background-color: rgba(239, 68, 68, 0.26);
 }
 
 /* Thermal hot-spot marker: warm glow on the bay, rails left intact */
