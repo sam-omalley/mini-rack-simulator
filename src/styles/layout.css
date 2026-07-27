@@ -212,6 +212,15 @@
    reads as a readout rather than a third button competing with − and +; the
    usual .btn hover/focus treatment appears on interaction to show it's live.
    Wide enough for "140%" so the toolbar doesn't shuffle as you zoom. */
+/* "Front" and "Rear" aren't the same width, so the button used to change shape
+   as you toggled it and shuffled the toolbar beside it (issue #57). The label
+   is its own fixed-width box — same trick as .zoom-btn's min-width below. */
+.face-label {
+  display: inline-block;
+  width: 3.2em;
+  text-align: left;
+}
+
 .zoom-btn {
   min-width: 56px;
   padding: 8px 6px;

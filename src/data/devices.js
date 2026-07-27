@@ -23,10 +23,22 @@
  *               App.updateThermalMap), so where you mount a fan matters.
  *   slots       Carrier descriptor: { count, accepts, layout }. Marks the device
  *               as a container whose bays hold SUBCOMPONENTS of class `accepts`.
+ *   rear        Optional rear-face override ('blank' | 'passthrough' |
+ *               'punchdown' | 'open' | 'backplane' | 'fan' | 'pdu' | 'psu').
+ *               Normally inferred from the fields above — set it only where the
+ *               inference is wrong (see rearLayoutFor in deviceFactory.js).
  */
 export const DEVICE_TYPES = {
   blank: { name: '1U White Blank Panel', ports: [], uHeight: 1, watts: 0, poeBudget: 0, heatWeight: 0 },
-  'brush-panel': { name: '1U Brush Cable Management Panel', ports: [], uHeight: 1, watts: 0, poeBudget: 0, heatWeight: 0 },
+  'brush-panel': {
+    name: '1U Brush Cable Management Panel',
+    ports: [],
+    uHeight: 1,
+    watts: 0,
+    poeBudget: 0,
+    heatWeight: 0,
+    rear: 'passthrough',
+  },
   'patch-8': { name: '8-Port White Patch Panel', ports: Array(8).fill('patch'), uHeight: 1, watts: 0, poeBudget: 0, heatWeight: 0 },
   'patch-12': { name: '12-Port White Patch Panel', ports: Array(12).fill('patch'), uHeight: 1, watts: 0, poeBudget: 0, heatWeight: 0 },
 
@@ -446,6 +458,9 @@ export const DEVICE_TYPES = {
     watts: 0,
     poeBudget: 0,
     heatWeight: 0,
+    // A tray, not a box: its front pass-throughs are open at the back too. The
+    // port would otherwise infer a PSU rear it hasn't got.
+    rear: 'open',
   },
   'geeekpi-vented-shelf-half': {
     name: 'GeeekPi 0.5U Heavy-Duty Vented Shelf',
@@ -529,6 +544,7 @@ export const DEVICE_TYPES = {
     watts: 0,
     poeBudget: 0,
     heatWeight: 0,
+    rear: 'passthrough',
   },
   'deskpi-dp0034': {
     name: 'DeskPi Rackmate 0.5U 12-Port CAT6 Patch Panel (DP-0034)',

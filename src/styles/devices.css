@@ -775,6 +775,120 @@ body.dark-mode .device:not(.placed) {
 .rack-wrapper.rear-view #cable-svg {
   display: none;
 }
+/* Rear faces vary by device family (issue #57) — every device wearing the same
+   generic inlet hid the one thing the rear view is for. `rearLayoutFor()` in
+   deviceFactory.js picks the layout; each gets a `.device-rear--<layout>` class. */
+
+/* Blank plate: blank on both sides, so just pressed steel and two rivets. */
+.device-rear--blank {
+  background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+}
+.rear-rivet {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #94a3b8;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.7);
+}
+
+/* Brush / cable-entry panel: an opening, so the same bristles from behind. */
+.device-rear--passthrough {
+  padding: 0;
+  background: #0f172a;
+}
+.rear-brush {
+  flex: 1 1 auto;
+  align-self: stretch;
+  background: repeating-linear-gradient(90deg, #111827, #111827 6px, #1e293b 6px, #1e293b 9px);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Patch panel: the punch-down bank it terminates on. */
+.device-rear--punchdown {
+  padding: 0 4px;
+  background: linear-gradient(180deg, #e2e8f0, #cbd5e1);
+}
+.rear-idc-bank {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2px;
+}
+.rear-idc {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 15px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border: 1px solid #475569;
+  border-radius: 2px;
+  /* Colour-coded IDC slots, the way a 110 block reads at a glance. */
+  background: repeating-linear-gradient(90deg, #1d4ed8 0 2px, #f8fafc 2px 3px, #f97316 3px 5px, #f8fafc 5px 6px);
+  box-shadow: inset 0 -3px 3px -2px rgba(0, 0, 0, 0.5);
+}
+.rear-idc-num {
+  font: 6px/1.4 monospace;
+  color: #f8fafc;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.9);
+}
+
+/* Shelf / open carrier: cabling passes straight through the back. */
+.device-rear--open {
+  background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+}
+.rear-cutout {
+  flex: 1 1 auto;
+  height: 60%;
+  border-radius: 2px;
+  background: #0b1220;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.85);
+}
+
+/* Drive cage: exhaust fan plus a SATA data+power header per bay. */
+.device-rear--backplane {
+  background: linear-gradient(180deg, #334155, #1f2937);
+}
+.rear-sata-bank {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.rear-sata {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.rear-sata-data,
+.rear-sata-pwr {
+  height: 9px;
+  border: 1px solid #64748b;
+  border-radius: 1px;
+  background: #0f172a;
+}
+.rear-sata-data {
+  width: 6px;
+}
+.rear-sata-pwr {
+  width: 10px;
+}
+
+/* Fan tray: it exhausts out the back and takes a DC feed. */
+.device-rear--fan {
+  background: linear-gradient(180deg, #475569, #1e293b);
+}
+.rear-fan {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #64748b;
+  background: repeating-radial-gradient(circle, #475569 0 1px, #0f172a 1px 3px);
+}
+
 .rear-inlet {
   flex: 0 0 auto;
   width: 18px;
@@ -786,6 +900,25 @@ body.dark-mode .device:not(.placed) {
 }
 .rear-inlet--iec {
   width: 22px;
+}
+/* Barrel jack — what most 10" gear actually takes. */
+.rear-inlet--dc {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #64748b 0 30%, #0b1220 32%);
+}
+.rear-vents {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+.rear-vent {
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: #0f172a;
+  opacity: 0.55;
 }
 .rear-label {
   font-size: 9px;
@@ -807,6 +940,26 @@ body.dark-mode .device:not(.placed) {
   border-radius: 2px;
   background: #1e293b;
   border: 1px solid #475569;
+}
+
+/* A 0.5U device is ~22px tall placed, so the rear detail has to come down with
+   it — same reasoning as the front faceplates above. */
+.device.u-half .device-rear {
+  gap: 4px;
+  padding: 0 4px;
+}
+.device.u-half .rear-idc {
+  height: 11px;
+}
+.device.u-half .rear-idc-num {
+  display: none;
+}
+.device.u-half .rear-fan {
+  width: 13px;
+  height: 13px;
+}
+.device.u-half .rear-vent {
+  height: 8px;
 }
 
 /* PDU faceplate */
