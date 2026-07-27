@@ -1623,12 +1623,17 @@ export const App = {
 
   toggleFace() {
     const rear = this.$wrapper.classList.toggle('rear-view');
-    // Fallen devices flip with the rack, so the whole scene shares one face...
+    // Fallen devices show their rear face too, so the whole scene shares one
+    // side. Their POSITIONS deliberately stay put (issue #57): mirroring them
+    // was physically tidier but it teleported every body, woke the solver and
+    // re-settled the stacks, so looking at the back of the rack rearranged the
+    // playground. Flipping the view is a camera operation — it must not touch
+    // the simulation, the same rule zoom follows (issue #46).
     document.getElementById('free-zone')?.classList.toggle('rear-view', rear);
-    // ...and mirror their positions left↔right, since the rear is a mirror image.
-    FreeZone.mirror();
     const btn = document.getElementById('btn-face');
-    btn.textContent = rear ? '🔀 Rear' : '🔀 Front';
+    // Only the word changes; the icon and the fixed-width label keep the button
+    // from resizing as it toggles (issue #57).
+    btn.querySelector('.face-label').textContent = rear ? 'Rear' : 'Front';
     btn.setAttribute('aria-pressed', String(rear));
   },
 

@@ -403,25 +403,14 @@ export const FreeZone = {
     if (moved) this._ensureRunning();
   },
 
-  /**
-   * Flip the scene left↔right to match the rack's front/rear toggle. The rear is
-   * a mirror of the front, so a device sitting on the right must move to the left
-   * (mirror x about the zone centre) — otherwise the scene is physically
-   * inconsistent with the flipped rack. Angle and horizontal momentum mirror too.
-   */
-  mirror() {
-    if (!this.zone || this.items.size === 0) return;
-    const { w } = this._metrics();
-    for (const body of this.items.keys()) {
-      Sleeping.set(body, false);
-      Body.setPosition(body, { x: w - body.position.x, y: body.position.y });
-      Body.setAngle(body, -body.angle);
-      Body.setVelocity(body, { x: -body.velocity.x, y: body.velocity.y });
-      this._paint(body);
-    }
-    this._ensureRunning(); // let the stack re-settle against the mirrored cabinet
-    this.app?.persistFreeSoon();
-  },
+  // NOTE: there is deliberately no mirror() here any more. Flipping to the rear
+  // view used to mirror every body's x about the zone centre, on the reasoning
+  // that the rear is a mirror image of the front. It was physically tidier and a
+  // worse experience: teleporting the bodies woke the solver and re-settled
+  // every stack, so peeking at the back of the rack rearranged the playground
+  // (issue #57). The face toggle is a camera operation now, like zoom (#46) —
+  // free devices change which side they SHOW (CSS: `.free-zone.rear-view`) and
+  // nothing in the simulation moves.
 
   /**
    * Lift a freshly-placed body straight up until it no longer overlaps the rack

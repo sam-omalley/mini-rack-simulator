@@ -40,15 +40,7 @@ export function createDevice(type, uSlot = null) {
     if (ports.children.length > 0) body.appendChild(ports);
   }
 
-  // Rear (power-side) face — shown when the rack is flipped to rear view.
-  const rear = el('div', 'device-rear');
-  const inlets = spec.layout === 'pdu' ? (spec.outlets ?? 8) : 1;
-  const inletHtml = spec.layout === 'pdu' ? '<span class="rear-inlet rear-inlet--iec"></span>' : '<span class="rear-inlet"></span>';
-  rear.innerHTML = `${inletHtml}<span class="rear-label">${escapeHtml(spec.name)}</span>${
-    inlets > 1 ? '<span class="rear-outlets">' + '<span class="rear-outlet"></span>'.repeat(inlets) + '</span>' : ''
-  }`;
-
-  dev.append(earL, body, rear, earR);
+  dev.append(earL, body, buildRear(spec), earR);
 
   if (uSlot) {
     dev.classList.add('placed');
@@ -156,6 +148,86 @@ function buildBracket(type, spec, uSlot) {
 
   return bracket;
 }
+
+/* ----------------------------------------------------------------- Rear */
+
+/**
+ * Which rear face a device wears (issue #57). Every device used to render the
+ * same generic inlet, which hid the one thing the rear view is for: the back of
+ * a patch panel is where it terminates, a blank plate has no power side at all,
+ * and a drive cage is a backplane.
+ *
+ * Inferred from what the catalog already describes, so adding a device doesn't
+ * mean remembering a second field. `spec.rear` overrides the guess where it
+ * would be wrong — a brush panel reads as unpowered but is really an opening.
+ */
+export function rearLayoutFor(spec) {
+  if (spec.rear) return spec.rear;
+  if (spec.slots) return String(spec.slots.accepts).startsWith('drive') ? 'backplane' : 'open';
+  if (spec.layout === 'pdu') return 'pdu';
+  if (spec.layout === 'fan-unit') return 'fan';
+  if (spec.layout === 'shelf') return 'open';
+  if (spec.ports?.length && spec.ports.every((p) => p === 'patch')) return 'punchdown';
+  if (!spec.watts && !spec.ports?.length) return 'blank';
+  return 'psu';
+}
+
+/** The rear (power / termination) face, shown when the rack is flipped. */
+function buildRear(spec) {
+  const layout = rearLayoutFor(spec);
+  const rear = el('div', `device-rear device-rear--${layout}`);
+  rear.innerHTML = REAR_FACES[layout](spec);
+  return rear;
+}
+
+const rearLabel = (spec) => `<span class="rear-label">${escapeHtml(spec.name)}</span>`;
+const repeat = (n, html) => html.repeat(Math.max(0, n));
+
+const REAR_FACES = {
+  /** A blank plate is blank on both sides — pressed steel and two rivets. */
+  blank: (spec) => `<span class="rear-rivet"></span>${rearLabel(spec)}<span class="rear-rivet"></span>`,
+
+  /** A brush / cable-entry panel is an opening: same bristles seen from behind. */
+  passthrough: () => '<span class="rear-brush"></span>',
+
+  /**
+   * Patch panels terminate at the rear — the punch-down bank is the detail the
+   * issue asks for. Numbered right-to-left, since the rear is a mirror of the
+   * front, so port 1 lines up with port 1 when you flip back.
+   */
+  punchdown: (spec) => {
+    const n = spec.ports.length;
+    const blocks = Array.from({ length: n }, (_, i) => `<span class="rear-idc"><span class="rear-idc-num">${n - i}</span></span>`);
+    return `<span class="rear-idc-bank">${blocks.join('')}</span>`;
+  },
+
+  /** Shelves and open carriers: cabling passes straight through the back. */
+  open: (spec) => `<span class="rear-cutout"></span>${rearLabel(spec)}`,
+
+  /** Drive cages: an exhaust fan and one SATA data+power header per bay. */
+  backplane: (spec) =>
+    '<span class="rear-fan"></span>' +
+    `<span class="rear-sata-bank">${repeat(spec.slots?.count ?? 0, '<span class="rear-sata"><i class="rear-sata-data"></i><i class="rear-sata-pwr"></i></span>')}</span>`,
+
+  /** Fan trays exhaust out the back and take a DC feed. */
+  fan: (spec) => `${repeat(spec.fans || 1, '<span class="rear-fan"></span>')}<span class="rear-inlet rear-inlet--dc"></span>`,
+
+  /** PDUs and the UPS: the inlet, plus the outlets it feeds. */
+  pdu: (spec) =>
+    `<span class="rear-inlet rear-inlet--iec"></span>${rearLabel(spec)}` +
+    `<span class="rear-outlets">${repeat(spec.outlets ?? 8, '<span class="rear-outlet"></span>')}</span>`,
+
+  /**
+   * Everything else that draws power: inlet, name, vent grille. Small 10" gear
+   * runs off a DC brick and bigger boxes take an IEC cord — approximated from
+   * the draw, since the catalog doesn't record connector types. A PoE-powered
+   * device has no inlet at all; its power arrives at the front.
+   */
+  psu: (spec) => {
+    const inlet = spec.poeIn ? '' : `<span class="rear-inlet rear-inlet--${(spec.watts ?? 0) > 20 ? 'iec' : 'dc'}"></span>`;
+    return `${inlet}${rearLabel(spec)}<span class="rear-vents">${repeat(6, '<span class="rear-vent"></span>')}</span>`;
+  },
+};
 
 /* ------------------------------------------------------------- Carriers */
 
