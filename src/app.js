@@ -5,7 +5,7 @@ import { createDevice, applyBayFill } from './render/deviceFactory.js';
 import { computeMetrics } from './render/metrics.js';
 import { CableManager } from './render/cableManager.js';
 import { classifyConnection, rackByU } from './render/cableClassify.js';
-import { STEP, snapAnchor, moveStep, halfRows } from './render/grid.js';
+import { STEP, moveStep, halfRows, resolveAnchor, grabRows } from './render/grid.js';
 import { parsePortId, portU, makePortId } from './utils/ports.js';
 import { Persistence } from './features/persistence.js';
 import { FreeZone } from './features/freeZone.js';
@@ -44,6 +44,8 @@ export const App = {
   fromSidebar: false,
   placingType: null,
   _fineMode: false, // sticky ½U grid toggle (button / "G")
+  _dragType: null, // device type in flight, whatever it was dragged from
+  _dragGrab: 0, // half-rows of it above the pointer (issue #62)
   history: [],
   historyIndex: -1,
   redrawPending: false,
@@ -153,11 +155,12 @@ export const App = {
       this.fromSidebar = true;
       e.dataTransfer.effectAllowed = 'copy';
       card.classList.add('dragging');
+      const preview = card.querySelector('.device');
       // The sidebar isn't zoomed, so the native drag image would preview at 100%
       // even when the rack is scaled — match the zoom so it looks like the drop.
       // At 100% the native image is already correct, so skip the custom ghost.
-      if (this.cameraScale() !== 1) this.setScaledDragImage(e, card.querySelector('.device'));
-      this.beginDrag(type, 'sidebar');
+      if (this.cameraScale() !== 1) this.setScaledDragImage(e, preview);
+      this.beginDrag(type, 'sidebar', this.grabRowsFor(e, preview, type));
     });
     card.addEventListener('dragend', () => {
       card.classList.remove('dragging');
@@ -520,6 +523,7 @@ export const App = {
       this.$hint.textContent = `Placing ${DEVICE_TYPES[active].name} — tap a free slot (Esc to cancel).`;
     } else {
       this.$hint.hidden = true;
+      this.clearDropPreview();
     }
     this.refreshHalfGrid();
   },
@@ -595,16 +599,18 @@ export const App = {
       const slot = e.target.closest('.slot');
       if (!slot) return;
       e.preventDefault();
-      slot.classList.add('drag-over');
+      this.previewDrop(this._dragType, Number(slot.dataset.u), this.fine(e), this._dragGrab);
     });
     this.$slots.addEventListener('dragleave', (e) => {
-      e.target.closest('.slot')?.classList.remove('drag-over');
+      // Only when the pointer leaves the rack entirely — moving between rows
+      // fires a dragleave too, and clearing there would strobe the preview.
+      if (!this.$slots.contains(e.relatedTarget)) this.clearDropPreview();
     });
     this.$slots.addEventListener('drop', (e) => {
       const slot = e.target.closest('.slot');
       if (!slot) return;
       e.preventDefault();
-      slot.classList.remove('drag-over');
+      this.clearDropPreview();
       this.handleDrop(slot, this.fine(e));
       // A successful dock removes the drag source, so its `dragend` never fires
       // and endDrag() wouldn't run — finish the drag explicitly here instead.
@@ -615,7 +621,11 @@ export const App = {
     // rack slot drops it into the physics playground (issue #43).
     const stage = document.getElementById('rack-stage');
     stage.addEventListener('dragover', (e) => {
-      if (this.draggedEl && !e.target.closest('.slot')) e.preventDefault();
+      if (e.target.closest('.slot')) return;
+      // Off the rack there is no slot to fill — drop the preview so it can't
+      // imply a rack placement that isn't going to happen.
+      this.clearDropPreview();
+      if (this.draggedEl) e.preventDefault();
     });
     stage.addEventListener('drop', (e) => {
       if (e.target.closest('.slot') || !this.draggedEl) return;
@@ -666,7 +676,7 @@ export const App = {
       // ghost the library cards and free devices already use.
       if (this.cameraScale() !== 1) this.setScaledDragImage(e, device);
       device.classList.add('dragging');
-      this.beginDrag(device.dataset.type, 'placed');
+      this.beginDrag(device.dataset.type, 'placed', this.grabRowsFor(e, device, device.dataset.type));
     });
     this.$slots.addEventListener('dragend', (e) => {
       e.target.closest('.device.placed')?.classList.remove('dragging');
@@ -685,11 +695,18 @@ export const App = {
     this.$slots.addEventListener('pointerover', (e) => {
       this.maybeTooltip(e);
       this.highlightCablesFor(e.target.closest('.device.placed'));
+      // Tap-to-place gets the same preview as a drag, so a multi-U part shows
+      // the rows it will fill before you commit to the tap (issue #62).
+      const slot = this.placingType && e.target.closest('.slot');
+      if (slot) this.previewDrop(this.placingType, Number(slot.dataset.u), this.fine(e));
     });
     this.$slots.addEventListener('pointerout', (e) => {
       if (e.target.closest('.port-rj45')) Tooltip.hide();
     });
-    this.$slots.addEventListener('pointerleave', () => this.highlightCablesFor(null));
+    this.$slots.addEventListener('pointerleave', () => {
+      this.highlightCablesFor(null);
+      if (this.placingType) this.clearDropPreview();
+    });
     this.$slots.addEventListener('focusin', (e) => {
       this.maybeTooltip(e);
       this.highlightCablesFor(e.target.closest('.device.placed'));
@@ -723,15 +740,79 @@ export const App = {
     this.$svg.classList.toggle('focusing', any);
   },
 
+  /**
+   * Where inside the dragged device the pointer took hold, in half-rows down
+   * from its top edge. Feeding this into the anchor is what makes the drop land
+   * where the drag image sits instead of hanging off the cursor (issue #62).
+   */
+  grabRowsFor(e, deviceEl, type) {
+    const rect = deviceEl?.getBoundingClientRect();
+    const fraction = rect?.height ? (e.clientY - rect.top) / rect.height : 0;
+    return grabRows(fraction, uHeightOf(type));
+  },
+
+  /** The top-anchor a drop over `pointerU` resolves to — preview and drop share it. */
+  anchorFor(type, pointerU, fine, grab = 0) {
+    return resolveAnchor(pointerU, uHeightOf(type), this.maxU, { fine, grab });
+  },
+
+  /**
+   * Outline exactly the rows the device will occupy if released here. It tracks
+   * the clamped anchor, so hovering the bottom row with a 3U part previews the
+   * bottom three rows, and it goes red when even the clamped position is
+   * blocked — an invalid drop never looks valid (issue #62).
+   */
+  previewDrop(type, pointerU, fine, grab = 0) {
+    if (!type) return;
+    const uHeight = uHeightOf(type);
+    const u = this.anchorFor(type, pointerU, fine, grab);
+    const ignore = this.dragOrigin === 'placed' ? this.draggedEl : null;
+    const ghost = this.ensureDropGhost();
+
+    // Row geometry comes from the .slot-row wrappers, which are the elements
+    // laid out in the container's flow (the gaps between them included).
+    const rows = [];
+    for (let i = 0; i < uHeight; i += STEP) {
+      const row = this.slot(u - i)?.parentElement;
+      if (row) rows.push(row);
+    }
+    if (rows.length === 0) {
+      ghost.hidden = true;
+      return;
+    }
+    const top = rows[0].offsetTop;
+    const bottom = rows[rows.length - 1].offsetTop + rows[rows.length - 1].offsetHeight;
+    ghost.hidden = false;
+    ghost.classList.toggle('drop-ghost--blocked', !this.canPlace(u, uHeight, ignore));
+    ghost.style.top = `${top}px`;
+    ghost.style.height = `${bottom - top}px`;
+  },
+
+  clearDropPreview() {
+    if (this.$dropGhost) this.$dropGhost.hidden = true;
+  },
+
+  /** renderSlots() empties the container, so the ghost is (re)made on demand. */
+  ensureDropGhost() {
+    if (!this.$dropGhost?.isConnected) {
+      this.$dropGhost = document.createElement('div');
+      this.$dropGhost.className = 'drop-ghost';
+      this.$dropGhost.hidden = true;
+      this.$dropGhost.setAttribute('aria-hidden', 'true');
+      this.$slots.appendChild(this.$dropGhost);
+    }
+    return this.$dropGhost;
+  },
+
   handleDrop(slot, fine = false) {
     const dropU = Number(slot.dataset.u);
     if (this.dragOrigin === 'sidebar' && this.draggedEl) {
-      this.placeType(this.draggedEl.dataset.deviceType, dropU, fine);
+      this.placeType(this.draggedEl.dataset.deviceType, dropU, fine, this._dragGrab);
       this._dropHandled = true;
     } else if (this.dragOrigin === 'free') {
       // A lifted free device docking into the rack — identical to a fresh place.
       const type = FreeZone.liftedType();
-      const u = snapAnchor(dropU, uHeightOf(type), fine);
+      const u = this.anchorFor(type, dropU, fine, this._dragGrab);
       if (!this.canPlace(u, uHeightOf(type))) {
         Toast.show(`Can't place here — needs ${uHeightOf(type)}U of free space.`);
         return; // unhandled → endDrag drops it back into the playground
@@ -745,7 +826,7 @@ export const App = {
       this.commit();
     } else if (this.draggedEl?.classList.contains('placed')) {
       const type = this.draggedEl.dataset.type;
-      const u = snapAnchor(dropU, uHeightOf(type), fine);
+      const u = this.anchorFor(type, dropU, fine, this._dragGrab);
       if (!this.canPlace(u, uHeightOf(type), this.draggedEl)) {
         Toast.show(`Can't move here — needs ${uHeightOf(type)}U of free space.`);
         return;
@@ -779,9 +860,9 @@ export const App = {
     }
   },
 
-  placeType(type, dropU, fine = false) {
+  placeType(type, dropU, fine = false, grab = 0) {
     const uHeight = uHeightOf(type);
-    const u = snapAnchor(dropU, uHeight, fine);
+    const u = this.anchorFor(type, dropU, fine, grab);
     if (!this.canPlace(u, uHeight)) {
       Toast.show(`Can't place — needs ${uHeight}U of free space here.`);
       return;
@@ -1423,8 +1504,10 @@ export const App = {
     this.$slots.classList.toggle('show-half', Boolean(show));
   },
 
-  beginDrag(type, origin = 'sidebar') {
+  beginDrag(type, origin = 'sidebar', grab = 0) {
     this.dragOrigin = origin;
+    this._dragType = type;
+    this._dragGrab = grab;
     this._dropHandled = false;
     this._dragLeftWindow = false;
     // The bin is a delete affordance — only meaningful for something already placed.
@@ -1443,9 +1526,12 @@ export const App = {
     document.getElementById('drag-bin')?.setAttribute('hidden', '');
     document.getElementById('drag-bin')?.classList.remove('drag-over');
     this.dragOrigin = null;
+    this._dragType = null;
+    this._dragGrab = 0;
     this._dropHandled = false;
     this._dragLeftWindow = false;
     this._fractionalDrag = false;
+    this.clearDropPreview();
     this.refreshHalfGrid();
   },
 
@@ -1471,7 +1557,14 @@ export const App = {
     clone.style.margin = '0';
     clone.style.left = '0';
     clone.style.top = '0';
-    clone.style.width = `${iw}px`;
+    // Two declarations on `.device.placed` outrank a plain inline style and have
+    // to be beaten explicitly, or the clone of a racked device paints at full
+    // layout size and gets cropped by the ghost box instead of being scaled:
+    // `width: 320px !important`, and the `snapEffect` animation, whose
+    // keyframes animate `transform` — a running animation wins over the inline
+    // transform below, so the snapshot came out at the keyframe's scale(0.96).
+    clone.style.setProperty('width', `${iw}px`, 'important');
+    clone.style.animation = 'none';
     clone.style.opacity = '1'; // in case the source is dimmed while lifted
     clone.style.transform = `scale(${z})`; // upright — strips any rotation
     clone.style.transformOrigin = 'top left';
@@ -1503,7 +1596,7 @@ export const App = {
       // The native preview ignores the zone's zoom and keeps the body's tilt;
       // use an upright, zoom-matched ghost so it matches how it'll drop.
       this.setScaledDragImage(e, el);
-      this.beginDrag(info.type, 'free');
+      this.beginDrag(info.type, 'free', this.grabRowsFor(e, el, info.type));
     });
     zone.addEventListener('dragend', () => this.endDrag());
 
