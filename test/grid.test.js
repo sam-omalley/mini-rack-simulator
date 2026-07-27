@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deviceHeightPx, halfRows, snapAnchor, moveStep } from '../src/render/grid.js';
+import { deviceHeightPx, halfRows, snapAnchor, moveStep, clampAnchor, grabRows, resolveAnchor } from '../src/render/grid.js';
 import { parsePortId, makePortId, portU } from '../src/utils/ports.js';
 
 describe('deviceHeightPx', () => {
@@ -31,6 +31,55 @@ describe('snapAnchor', () => {
   it('snaps fractional-height devices to the 0.5 grid by default', () => {
     expect(snapAnchor(2.5, 0.5, false)).toBe(2.5);
     expect(snapAnchor(2, 0.5, false)).toBe(2);
+  });
+});
+
+describe('clampAnchor', () => {
+  it('keeps a tall device inside the rack instead of overhanging the foot', () => {
+    expect(clampAnchor(2, 3, 6)).toBe(3); // 3U hovered at U2 -> bottom three rows
+    expect(clampAnchor(0.5, 1, 6)).toBe(1);
+  });
+  it('clamps to the top rail', () => {
+    expect(clampAnchor(9, 2, 6)).toBe(6);
+  });
+  it('leaves a position that already fits alone', () => {
+    expect(clampAnchor(4, 3, 6)).toBe(4);
+    expect(clampAnchor(0.5, 0.5, 6)).toBe(0.5);
+  });
+});
+
+describe('grabRows', () => {
+  it('is 0 when the device was picked up by its top edge', () => {
+    expect(grabRows(0, 3)).toBe(0);
+    expect(grabRows(0, 1)).toBe(0);
+  });
+  it('counts the half-rows above a mid-body grab', () => {
+    expect(grabRows(0.5, 3)).toBe(3); // 3U grabbed centrally: 3 half-rows above
+    expect(grabRows(0.5, 1)).toBe(1);
+  });
+  it('never lifts the anchor past the device itself', () => {
+    expect(grabRows(1, 3)).toBe(5); // 6 half-rows tall -> last row index
+    expect(grabRows(1, 0.5)).toBe(0);
+  });
+  it('shrugs off a missing or out-of-range fraction', () => {
+    expect(grabRows(undefined, 2)).toBe(0);
+    expect(grabRows(-3, 2)).toBe(0);
+    expect(grabRows(9, 2)).toBe(3);
+  });
+});
+
+describe('resolveAnchor', () => {
+  it('places a device where the drag image sits, not hanging off the cursor', () => {
+    // 3U grabbed centrally and dropped over U3 -> occupies U4..U2.
+    expect(resolveAnchor(3, 3, 6, { grab: 3 })).toBe(4);
+  });
+  it('clamps rather than previewing a position that runs off the rack', () => {
+    expect(resolveAnchor(1, 3, 6, {})).toBe(3);
+    expect(resolveAnchor(6, 3, 6, { grab: 5 })).toBe(6);
+  });
+  it('still snaps integer devices to whole U, and to halves in fine mode', () => {
+    expect(resolveAnchor(2.5, 1, 6, {})).toBe(3);
+    expect(resolveAnchor(2.5, 1, 6, { fine: true })).toBe(2.5);
   });
 });
 
