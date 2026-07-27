@@ -10,6 +10,38 @@ const WALL = 200;
 const BODY_OPTS = { restitution: 0.15, friction: 0.6, frictionStatic: 0.8, density: 0.0016 };
 
 /**
+ * How wide the world has to be, in world units, for it to still cover the stage
+ * once the fit-to-stage camera has scaled it down (issue #69).
+ *
+ * Sized to the raw stage width instead, a scaled world painted only `fitScale`
+ * of the stage — 72% of it on a 12U rack — so its own edges stood as invisible
+ * walls inside the visible area.
+ *
+ * Takes the FIT scale, never the full camera scale: the fit tracks the layout
+ * and is recomputed exactly when the world is rebuilt, whereas folding in the
+ * user's zoom would resize the world on a zoom step — the coupling #46 forbids.
+ */
+export function worldWidthFor(stageWidth, fitScale) {
+  const s = Number(fitScale);
+  return stageWidth / (Number.isFinite(s) && s > 0 ? s : 1);
+}
+
+/**
+ * Convert a client x into world units, measured from the world's centre.
+ *
+ * Used for the side panels, which live OUTSIDE the camera. The centre is the
+ * one horizontal screen point a top-centre `scale()` cannot move, so it is a
+ * sound thing to measure from — but the distance from it still has to be
+ * divided by the scale (issue #69). Omitting that treated screen pixels as
+ * world pixels, which was invisible at 1:1 and put the walls ~85-105px inside
+ * the panels once a tall rack was scaled down to fit.
+ */
+export function clientXToWorld(clientX, originX, worldWidth, scale) {
+  const s = Number(scale);
+  return worldWidth / 2 + (clientX - originX) / (Number.isFinite(s) && s > 0 ? s : 1);
+}
+
+/**
  * The "free positioning" easter egg (issue #43). Dropping a device outside the
  * rack drops it into a little 2D physics playground where devices fall, collide,
  * and stack — including piling on top of the rack itself. Free devices are pure
@@ -89,6 +121,18 @@ export const FreeZone = {
   },
 
   /**
+   * Just the fit-to-stage half of the camera — the part that is a property of
+   * the LAYOUT (rack height vs stage height), not of what the user is looking
+   * at. The world may be sized against this because it only changes when the
+   * layout does, which is exactly when the world is rebuilt; sizing against the
+   * full camera scale would resize the world on a zoom step, which is the
+   * coupling issue #46 exists to prevent.
+   */
+  _fitScale() {
+    return this.app?.fitScale || 1;
+  },
+
+  /**
    * Size the world to the stage, in world units, at every zoom level. The camera
    * then scales that fixed world: zooming in crops it, zooming out reveals empty
    * stage around it. The alternative — sizing the world to stage/zoom so the
@@ -108,7 +152,11 @@ export const FreeZone = {
     // the camera and this stays zoom-independent.
     const container = this.zone.parentElement;
     const worldH = Math.max(sr.height, container?.offsetHeight || 0);
-    this.zone.style.width = `${sr.width}px`;
+    // Wide enough that the world still covers the stage after the fit transform
+    // shrinks it (issue #69; see worldWidthFor). Height needs no such correction
+    // — fitCameraToStage picks the scale precisely so the full content height
+    // lands inside the stage.
+    this.zone.style.width = `${worldWidthFor(sr.width, this._fitScale())}px`;
     this.zone.style.height = `${worldH}px`;
   },
 
@@ -252,14 +300,15 @@ export const FreeZone = {
       height: r.height / z,
     });
 
-    // The panels are outside the camera, so they must not be measured through
-    // the zoom — that is exactly what used to drag the walls around on a zoom
-    // step. Anchor them instead on the two screen points the camera cannot move:
-    // the zone's centre-x and its top both sit on the transform origin (top
-    // centre), so they hold still at every zoom. Because the zone is stage-sized
-    // and stage-centred, this is just "client x, relative to the stage".
+    // The panels live outside the camera, so their client coordinates have to be
+    // converted before they mean anything in world space (see clientXToWorld).
+    // Same scale `toWorld` above uses and the same one `_toLocal` uses for drop
+    // points, so a device dropped beside a panel and the wall beside that panel
+    // now agree. This does not reintroduce the zoom coupling #46 forbids:
+    // syncBounds() is never called on a zoom change, so the walls stay put in
+    // world space when the user zooms — only a layout change recomputes them.
     const originX = rect.left + rect.width / 2;
-    const unzoomedX = (clientX) => w / 2 + (clientX - originX);
+    const unzoomedX = (clientX) => clientXToWorld(clientX, originX, w, z);
 
     // Side walls sit at the inner edge of whichever panel is showing, and slide
     // out to the world edge when it's collapsed — so collapsing a panel simply
